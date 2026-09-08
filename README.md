@@ -58,7 +58,15 @@ npm --prefix EditorWeb ci
 ./script/build_and_run.sh --release --build-only
 ```
 
-产物写入 `dist/`，包含应用、ZIP、调试符号和发布清单。当前采用本机 ad-hoc 签名；尚未配置 Developer ID 公证或 App Store 分发。
+产物写入 `dist/`，包含应用、ZIP、DMG、调试符号和发布清单。当前采用本机 ad-hoc 签名；尚未配置 Developer ID 公证或 App Store 分发。
+
+## DMG 安装包
+
+正式构建会生成 `dist/MyEditor.dmg`。双击挂载后，将 `MyEditor.app` 拖入 Applications，再推出磁盘映像，从“应用程序”启动。
+
+当前采用本机 ad-hoc 签名，尚未配置 Developer ID 签名和 Apple 公证。DMG 是为后续分发准备的打包格式；公开分发前仍需完成签名、公证及另一台 Mac 上的安装验证。打包与挂载校验需要具备磁盘映像设备访问权限的 macOS 环境。
+
+详见[发布说明](docs/RELEASING.md)。
 
 ## 项目结构
 

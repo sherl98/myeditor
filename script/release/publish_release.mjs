@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 export const releaseFiles = [
   'MyEditor.app',
   'MyEditor.zip',
+  'MyEditor.dmg',
   'MyEditor.dSYM.zip',
   'MyEditor.release-manifest.json',
 ]

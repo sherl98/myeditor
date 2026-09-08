@@ -8,6 +8,8 @@ import os from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 
+import { verifyDiskImage } from './create_dmg.mjs'
+
 const execFile = promisify(execFileCallback)
 
 async function pathExists(targetPath) {
@@ -149,6 +151,7 @@ function parseArguments(argumentsList) {
   const options = {
     bundle: null,
     archive: null,
+    dmg: null,
     dsymArchive: null,
     previousBuilds: null,
     budget: null,
@@ -164,6 +167,9 @@ function parseArguments(argumentsList) {
         break
       case '--archive':
         options.archive = argumentsList[++index]
+        break
+      case '--dmg':
+        options.dmg = argumentsList[++index]
         break
       case '--dsym-archive':
         options.dsymArchive = argumentsList[++index]
@@ -185,7 +191,7 @@ function parseArguments(argumentsList) {
     }
   }
 
-  for (const required of ['bundle', 'archive', 'budget', 'output', 'projectRoot']) {
+  for (const required of ['bundle', 'archive', 'dmg', 'budget', 'output', 'projectRoot']) {
     if (!options[required])
       throw new Error(
         `Missing required --${required.replaceAll(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)} argument`,
@@ -263,6 +269,7 @@ async function createManifest(options) {
   const metrics = {
     appLogicalBytes: await logicalFileBytes(bundle),
     archiveBytes: (await lstat(archive)).size,
+    dmgBytes: (await lstat(path.resolve(options.dmg))).size,
     editorHTMLBytes: (await lstat(editorHTML)).size,
     executableBytes: (await lstat(executable)).size,
     linkeditBytes: parseLinkeditBytes(sizeOutput),
@@ -280,7 +287,7 @@ async function createManifest(options) {
 
   const verification = await verifyArchives(bundle, archive, options.dsymArchive)
   const manifest = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     generatedAt: new Date().toISOString(),
     product: {
       name: 'MyEditor',
@@ -303,9 +310,14 @@ async function createManifest(options) {
         (embeddedDirty === 'true') === sourceDirty &&
         embeddedFingerprint === inspectedFingerprint,
     },
-    verification,
+    verification: {
+      ...verification,
+      dmg: await verifyDiskImage(bundle, path.resolve(options.dmg)),
+    },
+    distribution: { signing: 'ad-hoc', notarized: false },
     artifacts: {
       archiveSHA256: await sha256(archive),
+      dmgSHA256: await sha256(path.resolve(options.dmg)),
       executableSHA256: await sha256(executable),
       dSYMArchiveSHA256:
         options.dsymArchive && (await pathExists(path.resolve(options.dsymArchive)))

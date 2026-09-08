@@ -243,10 +243,12 @@ done
 verify_generated_bundle "$STAGING"
 if [[ "$CONFIGURATION" == "release" ]]; then
     /usr/bin/ditto --norsrc --noextattr --noacl -c -k --keepParent "$STAGING" "$STAGING_ROOT/MyEditor.zip"
+    node "$PROJECT_ROOT/script/release/create_dmg.mjs" "$STAGING" "$STAGING_ROOT/MyEditor.dmg"
     node "$PROJECT_ROOT/script/release/generate_release_manifest.mjs" \
         --project-root "$PROJECT_ROOT" \
         --bundle "$STAGING" \
         --archive "$STAGING_ROOT/MyEditor.zip" \
+        --dmg "$STAGING_ROOT/MyEditor.dmg" \
         --dsym-archive "$DSYM_ARCHIVE_STAGING" \
         --previous-builds "$PROJECT_ROOT/.cache/previous-builds" \
         --budget "$PROJECT_ROOT/Configurations/release-size-budget.json" \

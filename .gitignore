@@ -20,3 +20,7 @@ EditorWeb/dist/
 *.p12
 *.pfx
 *.mobileprovision
+
+# Distribution artifacts
+*.dmg
+*.dSYM/

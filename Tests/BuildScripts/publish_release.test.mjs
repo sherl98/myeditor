@@ -21,12 +21,12 @@ async function fixture(t) {
   return options
 }
 
-test('publishes all four artifacts and retains the previous generation', async (t) => {
+test('publishes all release artifacts and retains the previous generation', async (t) => {
   const options = await fixture(t)
   await publishRelease(options)
   for (const name of releaseFiles)
     assert.equal(await readFile(path.join(options.destination, name), 'utf8'), 'new')
-  assert.equal((await readdir(options.backups)).length, 4)
+  assert.equal((await readdir(options.backups)).length, releaseFiles.length)
 })
 test('failed promotion restores the entire previous generation', async (t) => {
   const options = await fixture(t)
@@ -51,5 +51,20 @@ test('Finder metadata in the prior release does not leave a partial backup', asy
   const options = await fixture(t)
   await writeFile(path.join(options.destination, '.DS_Store'), 'Finder metadata')
   await publishRelease(options)
-  assert.equal((await readdir(options.backups)).length, 4)
+  assert.equal((await readdir(options.backups)).length, releaseFiles.length)
+})
+
+test('missing DMG never replaces the previous release', async (t) => {
+  const options = await fixture(t)
+  await rm(path.join(options.staging, 'MyEditor.dmg'))
+  await assert.rejects(publishRelease(options), /Incomplete/)
+  assert.equal(await readFile(path.join(options.destination, 'MyEditor.dmg'), 'utf8'), 'old')
+})
+
+test('upgrading a legacy release without a DMG preserves all prior artifacts', async (t) => {
+  const options = await fixture(t)
+  await rm(path.join(options.destination, 'MyEditor.dmg'))
+  await publishRelease(options)
+  assert.equal((await readdir(options.backups)).length, releaseFiles.length - 1)
+  assert.equal(await readFile(path.join(options.destination, 'MyEditor.dmg'), 'utf8'), 'new')
 })

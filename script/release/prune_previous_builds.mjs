@@ -5,18 +5,21 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const generationPattern =
-  /([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})\.(?:app\.backup|dSYM\.zip|release-manifest\.json|zip)$/i
+  /([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})\.(?:app\.backup|dSYM\.zip|release-manifest\.json|dmg|zip)$/i
 
 function isBackupArtifact(entry) {
   return (
     (entry.isDirectory() && entry.name.endsWith('.app.backup')) ||
     (entry.isFile() &&
-      (entry.name.endsWith('.zip') || entry.name.endsWith('.release-manifest.json')))
+      (entry.name.endsWith('.zip') ||
+        entry.name.endsWith('.dmg') ||
+        entry.name.endsWith('.release-manifest.json')))
   )
 }
 
 function artifactType(name) {
   if (name.endsWith('.app.backup')) return 'app'
+  if (name.endsWith('.dmg')) return 'dmg'
   if (name.endsWith('.dSYM.zip')) return 'dsym'
   if (name.endsWith('.release-manifest.json')) return 'manifest'
   return 'zip'

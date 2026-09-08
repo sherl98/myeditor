@@ -157,3 +157,25 @@ test('rejects directories outside .cache/previous-builds', async (t) => {
     /Refusing to prune outside a \.cache\/previous-builds directory/,
   )
 })
+
+test('DMGs follow their generation while legacy App/ZIP generations remain valid', async (t) => {
+  const directory = await makeFixture(t)
+  await addCompleteGeneration(directory, generationIds[0], new Date('2026-09-01T12:00:00Z'))
+  await addCompleteGeneration(directory, generationIds[1], new Date('2026-09-02T12:00:00Z'))
+  const oldDMG = `MyEditor-${generationIds[0]}.dmg`
+  const newDMG = `MyEditor-${generationIds[1]}.dmg`
+  for (const [name, day] of [
+    [oldDMG, '01'],
+    [newDMG, '02'],
+  ]) {
+    await writeFile(path.join(directory, name), 'disk image')
+    const date = new Date(`2026-09-${day}T12:00:00Z`)
+    await utimes(path.join(directory, name), date, date)
+  }
+  const plan = await createRetentionPlan(directory, 1)
+  assert(plan.removals.some((item) => item.name === oldDMG))
+  assert(!plan.removals.some((item) => item.name === newDMG))
+  await applyRetentionPlan(plan)
+  await access(path.join(directory, newDMG))
+  await assert.rejects(access(path.join(directory, oldDMG)), { code: 'ENOENT' })
+})
