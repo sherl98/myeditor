@@ -28,7 +28,7 @@ def remember_mount(mount, options):
 def finish_layout(event):
     if event.get('type') == 'operation::finished' and event.get('operation') == 'dsstore::create':
         with DSStore.open(str(mounted / '.DS_Store'), 'r+') as store:
-            del store['.']['pBBk']
+            del store['.'][b'pBBk']
 
 build_dmg(str(output), 'MyEditor', callback=finish_layout, settings={
     'create_hook': remember_mount,
