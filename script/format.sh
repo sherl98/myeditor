@@ -4,9 +4,9 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
 MODE="${1:---check}"
 if [[ "$MODE" == "--write" ]]; then
-    xcrun swift-format format -i -r --configuration .swift-format Package.swift Sources Tests/CoreChecks script/MakeIcon.swift script/audit/RecoveryProbe.swift
+    xcrun swift-format format -i -r --configuration .swift-format Package.swift Sources Tests/CoreChecks script/MakeIcon.swift
 elif [[ "$MODE" == "--check" ]]; then
-    xcrun swift-format lint --strict -r --configuration .swift-format Package.swift Sources Tests/CoreChecks script/MakeIcon.swift script/audit/RecoveryProbe.swift
+    xcrun swift-format lint --strict -r --configuration .swift-format Package.swift Sources Tests/CoreChecks script/MakeIcon.swift
 else
     echo "Usage: $0 [--check|--write]" >&2
     exit 2
