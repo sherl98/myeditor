@@ -102,7 +102,6 @@ export async function createDiskImage(bundlePath, outputPath) {
     throw new Error('Expected an ordinary MyEditor.app directory')
   if (path.extname(output) !== '.dmg') throw new Error('Output must end in .dmg')
   if (output.startsWith(bundle + path.sep)) throw new Error('DMG output cannot be inside the app')
-  await run('/usr/bin/codesign', ['--verify', '--strict', bundle])
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'MyEditor-dmg-build-'))
   let retainTemporary = false
   try {
@@ -115,6 +114,9 @@ export async function createDiskImage(bundlePath, outputPath) {
       bundle,
       path.join(source, 'MyEditor.app'),
     ])
+    // Finder may attach metadata to the source between build verification and
+    // packaging. Verify the clean copy without modifying the original bundle.
+    await run('/usr/bin/codesign', ['--verify', '--strict', path.join(source, 'MyEditor.app')])
     await symlink('/Applications', path.join(source, 'Applications'))
     await writeFile(
       path.join(source, '安装说明.txt'),
