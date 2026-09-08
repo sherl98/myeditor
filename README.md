@@ -1,4 +1,4 @@
-<h1><img src="Resources/MyEditor.png" width="64" height="64" align="middle" alt="MyEditor Logo"> MyEditor</h1>
+<h1><img src="Resources/MyEditor.png" width="64" height="64" align="absmiddle" alt="MyEditor Logo"> MyEditor</h1>
 
 一个轻量的 macOS Markdown 阅读与编辑应用，支持正文与源码编辑、目录导航、全文搜索和 Mermaid 图表。
 
