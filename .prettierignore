@@ -1,0 +1,9 @@
+.build
+.cache
+.swiftpm
+.codex
+dist
+EditorWeb/dist
+EditorWeb/node_modules
+docs/archive
+EditorWeb/package-lock.json

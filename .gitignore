@@ -1,0 +1,22 @@
+# Generated builds and local state
+.build/
+.swiftpm/
+.cache/
+dist/
+dist */
+.DS_Store
+ValidationData/
+*.log
+EditorWeb/node_modules/
+EditorWeb/dist/
+.codex/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.mobileprovision

@@ -1,0 +1,36 @@
+{
+  "name": "myeditor-document-surface",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build && node scripts/inline.mjs && node scripts/licenses.mjs",
+    "dev": "vite --host 127.0.0.1",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@codemirror/commands": "6.11.0",
+    "@codemirror/lang-markdown": "6.5.2",
+    "@codemirror/language": "6.12.4",
+    "@codemirror/state": "6.7.2",
+    "@codemirror/view": "6.43.10",
+    "@lezer/highlight": "1.2.3",
+    "@mdxeditor/editor": "4.2.3",
+    "@mdxeditor/gurx": "1.2.4",
+    "lexical": "0.48.0",
+    "mdast-util-from-markdown": "2.0.3",
+    "mdast-util-frontmatter": "^2.0.0",
+    "mdast-util-gfm": "^3.0.0",
+    "mdast-util-to-markdown": "2.1.2",
+    "mermaid": "11.17.2",
+    "micromark-extension-frontmatter": "^2.0.0",
+    "micromark-extension-gfm": "^3.0.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.0",
+    "prettier": "3.9.6",
+    "vite": "^7.0.0"
+  }
+}
