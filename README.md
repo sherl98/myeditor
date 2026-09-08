@@ -1,111 +1,17 @@
-# MyEditor
+# <img src="Resources/MyEditor.png" width="40" height="40" alt="MyEditor Logo"> MyEditor
 
-面向 macOS 的本地 Markdown 阅读与编辑应用。原生 SwiftUI / AppKit 窗口搭配 WebKit 编辑器，支持直接编辑正文、查看 Markdown 源码、目录导航、全文搜索和 Mermaid 图表。
+一个轻量的 macOS Markdown 阅读与编辑应用，支持正文与源码编辑、目录导航、全文搜索和 Mermaid 图表。
 
-## 功能
+## 安装
 
-- 打开或拖入本地 Markdown 文件，并在独立窗口中编辑。
-- 正文编辑与 Markdown 源码视图，支持代码块与本地 Mermaid 渲染。
-- 标题目录、搜索高亮与匹配项导航。
-- 自动保存、外部文件变更检测、冲突处理与恢复副本。
-- 字体、字号与外观设置，以及最近打开的文档。
+[**下载 MyEditor.dmg**](https://github.com/sherl98/myeditor/releases/download/v2.0.0-preview.1/MyEditor.dmg)
 
-这是持续开发中的 macOS 应用。Mermaid 和编辑器依赖在构建时打包到本地；应用不需要 API 密钥。文档中的外部链接和远程资源仍可能访问网络。
+打开 DMG，将 MyEditor 拖入 Applications，然后从“应用程序”启动。
 
-## 开发环境
+需要 Apple Silicon Mac 和 macOS 26+。当前为预览版，尚未完成 Apple 公证。
 
-- Apple Silicon Mac，macOS 26 或更新版本。
-- Swift 6.2 工具链及 `swift-format`；项目格式基准为 6.2.3。
-- Node.js 24 与 npm；Web 依赖由 `EditorWeb/package-lock.json` 锁定。
-- 可用的 Apple 命令行开发工具（`xcrun`、`swift`、`codesign`）。
+## 致谢
 
-## 安装和运行
+感谢 [MarkEdit](https://github.com/MarkEdit-app/MarkEdit)、[CotEditor](https://github.com/coteditor/CotEditor)、[MiaoYan](https://github.com/tw93/MiaoYan) 和 [MarkupEditor](https://github.com/stevengharris/MarkupEditor) 提供的架构与工程参考。
 
-在仓库根目录执行：
-
-```sh
-npm --prefix EditorWeb ci
-./script/build_and_run.sh
-```
-
-启动脚本会正常退出已有的应用实例，再构建并启动调试应用。仅构建、不启动时使用：
-
-```sh
-./script/build_and_run.sh --build-only
-```
-
-调试应用位于 `.cache/products/debug/MyEditor.app`。
-
-## 验证
-
-```sh
-./script/check.sh
-```
-
-这会检查代码格式、构建原生目标、运行文档核心与 Web / 发布脚本测试、构建 Web 资源并校验文档链接。核心检查是独立的 SwiftPM 可执行目标，使用 `./script/swiftpm.sh run NovelReaderChecks`，而非 `swift test`。
-
-实际 AppKit / WebKit 集成检查需在 macOS 图形会话中逐项运行：
-
-```sh
-./script/build_and_run.sh --editor-checks
-./script/build_and_run.sh --feature-checks
-./script/build_and_run.sh --drop-checks
-```
-
-## 构建应用包
-
-```sh
-./script/build_and_run.sh --release --build-only
-```
-
-产物写入 `dist/`，包含应用、ZIP、DMG、调试符号和发布清单。当前采用本机 ad-hoc 签名；尚未配置 Developer ID 公证或 App Store 分发。
-
-## DMG 安装包
-
-正式构建会生成 `dist/MyEditor.dmg`。双击挂载后，将 `MyEditor.app` 拖入 Applications，再推出磁盘映像，从“应用程序”启动。
-
-当前采用本机 ad-hoc 签名，尚未配置 Developer ID 签名和 Apple 公证。DMG 是为后续分发准备的打包格式；公开分发前仍需完成签名、公证及另一台 Mac 上的安装验证。打包与挂载校验需要具备磁盘映像设备访问权限的 macOS 环境。
-
-详见[发布说明](docs/RELEASING.md)。
-
-## 项目结构
-
-| 路径 | 内容 |
-| --- | --- |
-| `Sources/ManuscriptCore` | 文档状态、保存、冲突与恢复 |
-| `Sources/MyEditor` | 原生窗口、设置、搜索与 WebKit 桥接 |
-| `EditorWeb` | React / MDXEditor / CodeMirror 编辑器与图表 |
-| `Tests` / `EditorWeb/test` | 原生核心、Web 和构建脚本检查 |
-| `Fixtures` | 合成测试文档及生成器 |
-| `Resources` / `Configurations` | 图标和构建预算 |
-| `script` | 构建、检查、格式化及发布工具 |
-| `docs` | 架构、开发、验证及发布指南 |
-
-详见[文档索引](docs/README.md)。
-
-## 开源参考与致谢
-
-感谢以下开源项目及其维护者。MyEditor 的架构调研和工程整理参考了这些项目：
-
-| 项目 | 参考内容 |
-| --- | --- |
-| [MarkEdit](https://github.com/MarkEdit-app/MarkEdit) | 原生界面与 Web 编辑器的分层、编辑器架构及应用打包方式。 |
-| [CotEditor](https://github.com/coteditor/CotEditor) | macOS 编辑器的工程组织，以及配置、脚本、测试和样本的分离。 |
-| [MiaoYan（妙言）](https://github.com/tw93/MiaoYan) | 原生 Markdown 编辑与预览的技术路线、开发及维护文档组织。 |
-| [MarkupEditor](https://github.com/stevengharris/MarkupEditor) | 在原生应用中通过 WKWebView 集成成熟 Web 富文本编辑器的架构思路。 |
-
-技术路线调研还参考了 [FSNotes](https://github.com/glushchenko/fsnotes)、[MarkText](https://github.com/marktext/marktext)、[Zettlr](https://github.com/Zettlr/Zettlr)、[QOwnNotes](https://github.com/pbek/QOwnNotes) 和 [Inkdown](https://github.com/renardresearch/inkdown)，用于了解不同的 Markdown 编辑模型与平台取舍。
-
-### 主要开源依赖
-
-应用直接使用以下开源组件：
-
-- [MDXEditor](https://github.com/mdx-editor/editor) / [Lexical](https://github.com/facebook/lexical)：正文富文本编辑与编辑状态管理。
-- [CodeMirror](https://github.com/codemirror/dev)：Markdown 源码、代码块和原文块编辑。
-- [Mermaid](https://github.com/mermaid-js/mermaid)：本地流程图与图表渲染。
-- [React](https://github.com/facebook/react)：Web 编辑器界面。
-- [mdast](https://github.com/syntax-tree/mdast) / [micromark](https://github.com/micromark/micromark) 生态工具：Markdown 解析、序列化及语法扩展。
-
-构建与开发工具包括 [Vite](https://github.com/vitejs/vite) 和 [Prettier](https://github.com/prettier/prettier)。依赖版本见 [package.json](EditorWeb/package.json) 与 [锁文件](EditorWeb/package-lock.json)；随应用打包的依赖许可及版权声明由构建脚本汇总至 `THIRD-PARTY-NOTICES.txt`。
-
-以上分别说明调研参考和实际依赖关系；本节不替代各项目的许可证与版权声明。
+编辑功能基于 [MDXEditor](https://github.com/mdx-editor/editor)、[Lexical](https://github.com/facebook/lexical)、[CodeMirror](https://github.com/codemirror/dev)、[Mermaid](https://github.com/mermaid-js/mermaid) 和 [React](https://github.com/facebook/react)。感谢这些项目的维护者与贡献者。

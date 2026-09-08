@@ -21,7 +21,7 @@
 
 ## DMG 打包
 
-正式构建自动生成 `dist/MyEditor.dmg`。使用 macOS 自带的 `hdiutil` 创建压缩的只读 HFS+ 磁盘映像，不需要额外 npm 或 Python 打包依赖。映像内有 `MyEditor.app`、指向 `/Applications` 的快捷方式和中英安装说明，采用 Finder 默认布局。
+正式构建自动生成 `dist/MyEditor.dmg`。使用 `dmgbuild` 和 macOS 自带的 `hdiutil` 创建压缩的只读 HFS+ 磁盘映像。窗口为白底、应用图标、蓝色箭头和 Applications 快捷方式，隐藏工具栏和侧栏。首次打包需要 Python 3.9+ 和网络，会在 `.cache/dmg-tools` 安装 `script/release/dmg-requirements.txt` 锁定的构建依赖；这些工具不随应用分发。窗口布局由 `script/release/dmg_layout.py` 生成。
 
 需要单独为已有应用打包时，指定一个尚不存在的输出文件：
 

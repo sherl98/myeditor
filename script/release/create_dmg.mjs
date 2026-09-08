@@ -10,7 +10,6 @@ import {
   readdir,
   readlink,
   rm,
-  symlink,
   writeFile,
 } from 'node:fs/promises'
 import os from 'node:os'
@@ -117,24 +116,26 @@ export async function createDiskImage(bundlePath, outputPath) {
     // Finder may attach metadata to the source between build verification and
     // packaging. Verify the clean copy without modifying the original bundle.
     await run('/usr/bin/codesign', ['--verify', '--strict', path.join(source, 'MyEditor.app')])
-    await symlink('/Applications', path.join(source, 'Applications'))
-    await writeFile(
-      path.join(source, '安装说明.txt'),
-      'MyEditor\n\n将 MyEditor.app 拖入 Applications 文件夹，然后推出此磁盘映像。\n从“应用程序”文件夹启动 MyEditor。\n\n需要 Apple Silicon Mac 和 macOS 26 或更新版本。\n\nDrag MyEditor.app into Applications, then eject this disk image.\nLaunch MyEditor from your Applications folder.\nRequires Apple Silicon and macOS 26 or later.\n',
-    )
+    const projectRoot = fileURLToPath(new URL('../../', import.meta.url))
+    const python = path.join(projectRoot, '.cache/dmg-tools/bin/python')
+    const requirements = fileURLToPath(new URL('dmg-requirements.txt', import.meta.url))
+    const stamp = path.join(projectRoot, '.cache/dmg-tools/requirements.sha256')
+    const digest = createHash('sha256')
+      .update(await readFile(requirements))
+      .digest('hex')
+    let installed = ''
+    try {
+      installed = await readFile(stamp, 'utf8')
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error
+    }
+    if (installed !== digest) {
+      await run('python3', ['-m', 'venv', path.dirname(path.dirname(python))])
+      await run(python, ['-m', 'pip', 'install', '--disable-pip-version-check', '-r', requirements])
+      await writeFile(stamp, digest)
+    }
     const image = path.join(temporary, 'MyEditor.dmg')
-    await run('/usr/bin/hdiutil', [
-      'create',
-      '-volname',
-      'MyEditor',
-      '-srcfolder',
-      source,
-      '-fs',
-      'HFS+',
-      '-format',
-      'UDZO',
-      image,
-    ])
+    await run(python, [fileURLToPath(new URL('dmg_layout.py', import.meta.url)), source, image])
     const verification = await verifyDiskImage(bundle, image)
     await mkdir(path.dirname(output), { recursive: true })
     // An existing release is never overwritten by a standalone packaging run.
