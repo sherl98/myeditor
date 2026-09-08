@@ -15,3 +15,5 @@
 感谢 [MarkEdit](https://github.com/MarkEdit-app/MarkEdit)、[CotEditor](https://github.com/coteditor/CotEditor)、[MiaoYan](https://github.com/tw93/MiaoYan) 和 [MarkupEditor](https://github.com/stevengharris/MarkupEditor) 提供的架构与工程参考。
 
 编辑功能基于 [MDXEditor](https://github.com/mdx-editor/editor)、[Lexical](https://github.com/facebook/lexical)、[CodeMirror](https://github.com/codemirror/dev)、[Mermaid](https://github.com/mermaid-js/mermaid) 和 [React](https://github.com/facebook/react)。感谢这些项目的维护者与贡献者。
+
+本项目由作者与 OpenAI Codex 协作开发。
