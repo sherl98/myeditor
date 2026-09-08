@@ -75,3 +75,29 @@ npm --prefix EditorWeb ci
 
 详见[文档索引](docs/README.md)。
 
+## 开源参考与致谢
+
+感谢以下开源项目及其维护者。MyEditor 的架构调研和工程整理参考了这些项目：
+
+| 项目 | 参考内容 |
+| --- | --- |
+| [MarkEdit](https://github.com/MarkEdit-app/MarkEdit) | 原生界面与 Web 编辑器的分层、编辑器架构及应用打包方式。 |
+| [CotEditor](https://github.com/coteditor/CotEditor) | macOS 编辑器的工程组织，以及配置、脚本、测试和样本的分离。 |
+| [MiaoYan（妙言）](https://github.com/tw93/MiaoYan) | 原生 Markdown 编辑与预览的技术路线、开发及维护文档组织。 |
+| [MarkupEditor](https://github.com/stevengharris/MarkupEditor) | 在原生应用中通过 WKWebView 集成成熟 Web 富文本编辑器的架构思路。 |
+
+技术路线调研还参考了 [FSNotes](https://github.com/glushchenko/fsnotes)、[MarkText](https://github.com/marktext/marktext)、[Zettlr](https://github.com/Zettlr/Zettlr)、[QOwnNotes](https://github.com/pbek/QOwnNotes) 和 [Inkdown](https://github.com/renardresearch/inkdown)，用于了解不同的 Markdown 编辑模型与平台取舍。
+
+### 主要开源依赖
+
+应用直接使用以下开源组件：
+
+- [MDXEditor](https://github.com/mdx-editor/editor) / [Lexical](https://github.com/facebook/lexical)：正文富文本编辑与编辑状态管理。
+- [CodeMirror](https://github.com/codemirror/dev)：Markdown 源码、代码块和原文块编辑。
+- [Mermaid](https://github.com/mermaid-js/mermaid)：本地流程图与图表渲染。
+- [React](https://github.com/facebook/react)：Web 编辑器界面。
+- [mdast](https://github.com/syntax-tree/mdast) / [micromark](https://github.com/micromark/micromark) 生态工具：Markdown 解析、序列化及语法扩展。
+
+构建与开发工具包括 [Vite](https://github.com/vitejs/vite) 和 [Prettier](https://github.com/prettier/prettier)。依赖版本见 [package.json](EditorWeb/package.json) 与 [锁文件](EditorWeb/package-lock.json)；随应用打包的依赖许可及版权声明由构建脚本汇总至 `THIRD-PARTY-NOTICES.txt`。
+
+以上分别说明调研参考和实际依赖关系；本节不替代各项目的许可证与版权声明。
