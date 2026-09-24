@@ -9,6 +9,23 @@ let activeHeading = null
 let scrollFrame = 0
 let headingElements = []
 
+// Keep the visible paragraph in place when reading typography changes to editing typography.
+export function captureReadingPosition() {
+  if (runtime.fallback || runtime.showsSource || window.scrollY < 1) return () => {}
+  const body = document.querySelector('.document-content')
+  if (!body) return () => {}
+  const bounds = body.getBoundingClientRect()
+  const x = Math.max(1, Math.min(innerWidth - 1, bounds.left + bounds.width / 2))
+  const element = document
+    .elementFromPoint(x, 80)
+    ?.closest('p, li, h1, h2, h3, h4, h5, h6, blockquote')
+  if (!element || !body.contains(element)) return () => {}
+  const top = element.getBoundingClientRect().top
+  return () => {
+    if (element.isConnected) window.scrollBy(0, element.getBoundingClientRect().top - top)
+  }
+}
+
 export function cancelWheel() {
   if (frame) cancelAnimationFrame(frame)
   frame = 0

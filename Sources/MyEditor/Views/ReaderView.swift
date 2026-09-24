@@ -30,11 +30,13 @@ struct ReaderView: View {
                 Button {
                     application.revealInFinder(session)
                 } label: {
-                    Label("在访达中打开", systemImage: "folder")
+                    Label(
+                        session.isUntitled ? "未保存" : "在访达中打开",
+                        systemImage: session.isUntitled ? "document" : "folder")
                 }
                 .buttonStyle(.borderless)
-                .help(session.url.path)
-                .disabled(session.isRenaming || session.isClosed)
+                .help(session.url?.path ?? "保存后将自动保存后续修改")
+                .disabled(session.isUntitled || session.isRenaming || session.isClosed)
                 Spacer()
                 Picker(
                     "显示样式",
@@ -70,6 +72,7 @@ struct ReaderView: View {
         .tint(application.preferences.accentColor)
         .accentColor(application.preferences.accentColor)
         .onChange(of: session.hasUnsavedChanges) { application.updateWindow(for: session) }
+        .onChange(of: session.displayName) { application.updateWindow(for: session) }
         .onChange(of: session.url) { application.updateWindow(for: session) }
     }
 }

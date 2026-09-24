@@ -19,6 +19,8 @@
 
 应用使用本地 ad-hoc 签名；此流程不代表 Developer ID 公证或公开发布。依赖许可证随 Web 构建生成并附在应用资源中。
 
+Preview 2 新增无路径文稿生命周期与原生关闭确认后，Release 可执行文件实测为 1,136,160 字节，超过原来的 1,100,000 字节上限。因此仅将可执行文件预算调整至 1,200,000 字节；应用总大小、ZIP、Web 资源和其余预算保持原限额。
+
 ## DMG 打包
 
 正式构建自动生成 `dist/MyEditor.dmg`。使用 `dmgbuild` 和 macOS 自带的 `hdiutil` 创建压缩的只读 HFS+ 磁盘映像。窗口为白底、应用图标、蓝色箭头和 Applications 快捷方式，隐藏工具栏和侧栏。首次打包需要 Python 3.9+ 和网络，会在 `.cache/dmg-tools` 安装 `script/release/dmg-requirements.txt` 锁定的构建依赖；这些工具不随应用分发。窗口布局由 `script/release/dmg_layout.py` 生成。

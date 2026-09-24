@@ -27,6 +27,7 @@ import WebKit
 /// for subsequent appearance, font or mode changes to invalidate.
 struct MarkdownEditorConfiguration: Equatable {
     let revision: UInt64
+    let resourceBase: String
     let readOnly: Bool
     let showsSource: Bool
     let fontPercent: Int
@@ -45,6 +46,7 @@ struct MarkdownEditorConfiguration: Equatable {
         bodyOpticalOffset: Int
     ) {
         revision = session.documentRevision
+        resourceBase = session.url?.deletingLastPathComponent().absoluteString ?? ""
         readOnly = !session.isEditing || session.isClosing
         showsSource = session.showsSource
         fontPercent = application.preferences.fontPercent
@@ -63,6 +65,7 @@ struct MarkdownEditorConfiguration: Equatable {
     var webOptions: [String: Any] {
         [
             "readOnly": readOnly, "showsSource": showsSource, "fontPercent": fontPercent,
+            "resourceBase": resourceBase,
             "contentFontFace": contentFontFace.webOptions, "codeFontFace": codeFontFace.webOptions,
             "appearance": appearance,
             "resolvedDarkAppearance": resolvedDarkAppearance,
@@ -85,7 +88,7 @@ struct MarkdownWebEditor: NSViewRepresentable {
         let configuration = WKWebViewConfiguration()
         configuration.userContentController.add(context.coordinator, name: "myEditor")
         configuration.setURLSchemeHandler(
-            DocumentImageHandler(directory: session.url.deletingLastPathComponent()),
+            DocumentImageHandler(session: session),
             forURLScheme: "myeditor-resource")
         let webView = MarkdownWKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
@@ -222,6 +225,10 @@ struct MarkdownWebEditor: NSViewRepresentable {
                 session.setEditorReady(true)
                 update(reduceMotion: reduceMotion, configuration: configuration)
                 application.search(session)
+                if session.isUntitled, session.isEditing, application.activeDocumentID == session.id
+                {
+                    focusDocument()
+                }
             case "pending": session.notePendingEditorChanges()
             case "settled":
                 if let sequence = body["sequence"] as? NSNumber {
@@ -531,17 +538,17 @@ final class MarkdownWKWebView: WKWebView {
 }
 
 @MainActor private final class DocumentImageHandler: NSObject, WKURLSchemeHandler {
-    let directory: URL
+    private weak var session: DocumentSession?
     private var tasks: [ObjectIdentifier: Task<Void, Never>] = [:]
-    init(directory: URL) { self.directory = directory }
+    init(session: DocumentSession) { self.session = session }
     func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {
         let id = ObjectIdentifier(urlSchemeTask)
         tasks[id]?.cancel()
-        let directory = self.directory
+        let directory = session?.url?.deletingLastPathComponent()
         tasks[id] = Task { [weak self] in
             defer { self?.tasks.removeValue(forKey: id) }
             do {
-                guard let requestURL = urlSchemeTask.request.url,
+                guard let directory, let requestURL = urlSchemeTask.request.url,
                     let reference = URLComponents(url: requestURL, resolvingAgainstBaseURL: false)?
                         .queryItems?.first(where: { $0.name == "path" })?.value,
                     let url = URL(string: reference, relativeTo: directory)?.absoluteURL,

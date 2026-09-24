@@ -82,12 +82,19 @@
                 try await wait("Fixture closes") { session.isClosed }
             }
             for group in [
-                "search-clear", "search", "mermaid", "large", "fonts", "empty", "recovery",
+                "new-document", "typography", "search-clear", "search", "mermaid", "large", "fonts",
+                "empty", "recovery",
             ]
             where phase == "all" || phase.split(separator: ",").contains(Substring(group)) {
                 completed = []
                 do {
-                    if group == "recovery" {
+                    if group == "new-document" {
+                        completed = try await DocumentCreationIntegrationChecks.run(
+                            application: application, directory: directory)
+                    } else if group == "typography" {
+                        completed = try await TypographyIntegrationChecks.run(
+                            application: application, directory: directory)
+                    } else if group == "recovery" {
                         completed = try await RecoveryIntegrationChecks.run(
                             application: application, directory: directory)
                     } else if group == "search-clear" {
@@ -105,7 +112,8 @@
                         )
                         try check(
                             !session.hasUnsavedChanges && !session.isEditing
-                                && (try String(contentsOf: session.url, encoding: .utf8)) == source,
+                                && (try String(contentsOf: session.url!, encoding: .utf8))
+                                    == source,
                             "Search does not rewrite a read-only document")
                         try await replace(session, with: "小猫")
                         try check(
@@ -253,10 +261,10 @@
                             // AppKit ignores minSize when Auto Layout owns the window.
                             // Exercise the same delegate gate used by interactive resizing.
                             let permitted = window.delegate?.windowWillResize?(
-                                window, to: NSSize(width: 640, height: 480))
+                                window, to: NSSize(width: 320, height: 480))
                             try check(
                                 permitted == ReaderPreferences.minimumWindowSize,
-                                "Interactive resizing preserves the 640 × 640 search layout minimum"
+                                "Interactive resizing preserves the 480 × 640 compact layout minimum"
                             )
                         }
                         var inspected: [String: Any] = [:]

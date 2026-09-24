@@ -23,8 +23,8 @@ struct DocumentTitleView: View {
         }
         .buttonStyle(.plain)
         .disabled(session.isClosing || session.isRenaming)
-        .help("重命名或另存为 · \(session.url.lastPathComponent)")
-        .accessibilityLabel("文件操作：\(session.url.lastPathComponent)")
+        .help("重命名或另存为 · \(session.displayName)")
+        .accessibilityLabel("文件操作：\(session.displayName)")
         .popover(isPresented: $presentation.isShowingActions, arrowEdge: .bottom) {
             DocumentFileActionsView(session: session, application: application) {
                 presentation.isShowingActions = false
@@ -48,7 +48,7 @@ private struct DocumentFileActionsView: View {
         self.session = session
         self.application = application
         self.dismiss = dismiss
-        _name = State(initialValue: session.url.deletingPathExtension().lastPathComponent)
+        _name = State(initialValue: session.suggestedName)
     }
 
     var body: some View {
@@ -65,10 +65,11 @@ private struct DocumentFileActionsView: View {
             HStack(spacing: 10) {
                 Text("位置：").foregroundStyle(.secondary)
                 Label(
-                    session.url.deletingLastPathComponent().lastPathComponent, systemImage: "folder"
+                    session.url?.deletingLastPathComponent().lastPathComponent ?? "尚未保存",
+                    systemImage: "folder"
                 )
                 .lineLimit(1).truncationMode(.middle)
-                .help(session.url.deletingLastPathComponent().path)
+                .help(session.url?.deletingLastPathComponent().path ?? "首次保存时选择位置")
             }
             if let error {
                 Text(error).font(.callout).foregroundStyle(.red).fixedSize(
@@ -76,7 +77,7 @@ private struct DocumentFileActionsView: View {
             }
             HStack {
                 if isSubmitting { ProgressView().controlSize(.small) }
-                Button("另存为…", action: saveCopy)
+                Button(session.isUntitled ? "保存…" : "另存为…", action: saveCopy)
                     .disabled(isSubmitting)
                 Spacer()
                 Button("取消", action: dismiss).keyboardShortcut(.cancelAction)

@@ -4,7 +4,7 @@
 
 ## 安装
 
-[**下载 MyEditor.dmg**](https://github.com/sherl98/myeditor/releases/download/v2.0.0-preview.1/MyEditor.dmg)
+[**下载 MyEditor.dmg**](https://github.com/sherl98/myeditor/releases/download/v2.0.0-preview.2/MyEditor.dmg)
 
 打开 DMG，将 MyEditor 拖入 Applications，然后从“应用程序”启动。
 

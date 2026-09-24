@@ -69,7 +69,7 @@ struct ReaderControls: View {
             .labelStyle(.titleAndIcon)
             .fixedSize()
             .disabled(session.isClosing || !session.editorReady)
-            .help(session.isEditing ? "完成编辑并保存" : "原位编辑全文")
+            .help(session.isEditing ? (session.isUntitled ? "完成编辑，保留未保存文稿" : "完成编辑并保存") : "原位编辑全文")
             .animation(.easeInOut(duration: 0.18), value: session.isEditing)
         }
         .font(.system(size: 13))
@@ -148,7 +148,7 @@ struct PreferencesView: View {
                 }
             }
             .pickerStyle(.menu)
-            Text("停止输入 800 毫秒后自动同步到源文件。撤销历史保留到文档关闭。")
+            Text("首次保存后，停止输入 800 毫秒会自动同步到文件。撤销历史保留到文档关闭。")
                 .font(.callout).foregroundStyle(.secondary)
         }
         .formStyle(.grouped).frame(width: 500, height: 390)

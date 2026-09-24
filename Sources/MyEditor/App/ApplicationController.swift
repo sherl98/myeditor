@@ -21,6 +21,7 @@ final class ApplicationController {
     @ObservationIgnored private var welcome: WelcomeWindowController?
     @ObservationIgnored private var closing: Set<UUID> = []
     @ObservationIgnored private var pickerVisible = false
+    @ObservationIgnored private var savingDocuments: Set<UUID> = []
     @ObservationIgnored private var openingTask: Task<Void, Never>?
     @ObservationIgnored private var appearanceChangeID = 0
     private let logger = Logger(subsystem: "local.novelreader.app", category: "application")
@@ -83,16 +84,33 @@ final class ApplicationController {
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
         panel.prompt = "打开"
+        var createNew = false
+        panel.accessoryView = NSHostingView(
+            rootView:
+                HStack {
+                    Button("新建文稿") { [weak panel] in
+                        createNew = true
+                        panel?.cancel(nil)
+                    }
+                    Spacer()
+                }.padding(.vertical, 6).frame(width: 260, height: 40)
+        )
+        panel.isAccessoryViewDisclosed = true
         let completion: (NSApplication.ModalResponse) -> Void = { [weak self] response in
             guard let self else { return }
             self.pickerVisible = false
-            if response == .OK { self.open(panel.urls) }
+            if createNew { self.newDocument() } else if response == .OK { self.open(panel.urls) }
         }
         if let window = NSApp.keyWindow {
             panel.beginSheetModal(for: window, completionHandler: completion)
         } else {
             panel.begin(completionHandler: completion)
         }
+    }
+
+    func newDocument() {
+        guard !isQuitting, !pickerVisible else { return }
+        present(store.createDocument(), accessURL: nil)
     }
 
     func open(_ urls: [URL]) {
@@ -129,8 +147,10 @@ final class ApplicationController {
         return true
     }
 
-    private func present(_ session: DocumentSession, accessURL: URL) {
-        if Bundle.main.object(forInfoDictionaryKey: "NRRunFeatureChecks") as? Bool != true {
+    private func present(_ session: DocumentSession, accessURL: URL?) {
+        if let accessURL,
+            Bundle.main.object(forInfoDictionaryKey: "NRRunFeatureChecks") as? Bool != true
+        {
             // Preserve the picker/Finder/bookmark URL's grant for future opens.
             recentDocuments.record(accessURL)
         }
@@ -197,7 +217,7 @@ final class ApplicationController {
         do {
             let previousURL = session.url
             try await session.rename(to: name)
-            recentDocuments.record(session.url, replacing: previousURL)
+            if let url = session.url { recentDocuments.record(url, replacing: previousURL) }
             updateWindow(for: session)
             return nil
         } catch { return error.localizedDescription }
@@ -321,7 +341,7 @@ final class ApplicationController {
     }
 
     func revealInFinder(_ session: DocumentSession) {
-        let url = session.url
+        guard let url = session.url else { return }
         Task {
             let exists = await Task.detached(priority: .userInitiated) {
                 FileManager.default.fileExists(atPath: url.path)
@@ -350,6 +370,9 @@ final class ApplicationController {
     @discardableResult func save(
         _ session: DocumentSession, reason: SaveReason, commitComposition: Bool = true
     ) async -> Bool {
+        if session.isUntitled, reason == .explicit {
+            return await saveNewDocument(session, closing: false) == .saved
+        }
         guard await flushEditor(session, commitComposition: commitComposition) else { return false }
         return await session.save(reason)
     }
@@ -409,7 +432,8 @@ final class ApplicationController {
         }
     }
     func requestClose(_ session: DocumentSession) {
-        guard !closing.contains(session.id), !isQuitting else { return }
+        guard !closing.contains(session.id), !savingDocuments.contains(session.id), !isQuitting
+        else { return }
         closing.insert(session.id)
         Task {
             _ = await flushEditor(session)
@@ -430,6 +454,14 @@ final class ApplicationController {
     }
 
     private func ensureSaved(_ session: DocumentSession) async -> Bool {
+        if session.isUntitled {
+            let result = await saveNewDocument(session, closing: true)
+            if result == .discarded {
+                closeSaved(session)
+                return true
+            }
+            return result == .saved
+        }
         while !session.isClosed {
             if await save(session, reason: .close) {
                 if !session.hasUnsavedChanges && !session.isComposing { return true }
@@ -438,7 +470,7 @@ final class ApplicationController {
             windows[session.id]?.window?.makeKeyAndOrderFront(nil)
             let alert = NSAlert()
             alert.alertStyle = .warning
-            alert.messageText = "“\(session.url.lastPathComponent)”尚未保存"
+            alert.messageText = "“\(session.displayName)”尚未保存"
             alert.informativeText = (session.issue ?? "请先完成输入。") + "\n文档将保持打开，直到保存成功或另存副本。"
             alert.addButton(withTitle: session.editorRecoveryRequired ? "恢复最近同步的正文" : "重试")
             alert.addButton(withTitle: "另存副本…")
@@ -480,6 +512,9 @@ final class ApplicationController {
 
     func terminate() -> NSApplication.TerminateReply {
         guard !isQuitting else { return .terminateLater }
+        guard savingDocuments.isEmpty, closing.isEmpty, !pickerVisible else {
+            return .terminateCancel
+        }
         isQuitting = true
         Task {
             for session in store.sessions {
@@ -501,6 +536,9 @@ final class ApplicationController {
     }
 
     @discardableResult func saveCopy(_ session: DocumentSession) async -> Bool {
+        if session.isUntitled, !session.editorRecoveryRequired {
+            return await saveNewDocument(session, closing: false) == .saved
+        }
         if !session.editorRecoveryRequired {
             guard await flushEditor(session) else { return false }
         }
@@ -508,8 +546,8 @@ final class ApplicationController {
         panel.title = session.editorRecoveryRequired ? "导出最近同步的正文" : "另存为 Markdown 文档"
         if session.editorRecoveryRequired { panel.message = "副本包含最近同步的正文，可能不包含中断前最后的输入。源文件保持不变。" }
         panel.nameFieldStringValue =
-            session.url.deletingPathExtension().lastPathComponent + "-副本.md"
-        panel.directoryURL = session.url.deletingLastPathComponent()
+            session.suggestedName + "-副本.md"
+        panel.directoryURL = session.url?.deletingLastPathComponent()
         panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
         panel.canCreateDirectories = true
         let response: NSApplication.ModalResponse = await withCheckedContinuation { continuation in
@@ -542,6 +580,75 @@ final class ApplicationController {
         } catch {
             await showError("无法保存副本", message: error.localizedDescription)
             return false
+        }
+    }
+
+    private enum NewDocumentSaveResult { case saved, discarded, cancelled }
+
+    private func saveNewDocument(_ session: DocumentSession, closing: Bool) async
+        -> NewDocumentSaveResult
+    {
+        guard !session.isClosed, !savingDocuments.contains(session.id) else { return .cancelled }
+        savingDocuments.insert(session.id)
+        let wasClosing = session.isClosing
+        // Commit input before making the document read-only. Deleting remains available if flush fails.
+        _ = await flushEditor(session)
+        session.setClosing(true)
+        defer {
+            session.setClosing(wasClosing)
+            savingDocuments.remove(session.id)
+        }
+        if closing {
+            let confirmation = NewDocumentCloseConfirmation(
+                name: session.suggestedName, window: windows[session.id]?.window
+            ) { [self] destination in
+                guard await flushEditor(session) else {
+                    throw NSError(
+                        domain: "MyEditor", code: 1,
+                        userInfo: [
+                            NSLocalizedDescriptionKey: session.issue ?? "请先完成正在输入的文字，然后重试保存。"
+                        ])
+                }
+                try await store.saveFirst(session, to: destination)
+                recentDocuments.record(destination)
+                updateWindow(for: session)
+            }
+            switch await confirmation.confirm() {
+            case .saved: return .saved
+            case .discarded: return .discarded
+            case .cancelled: return .cancelled
+            }
+        }
+        let panel = NSSavePanel()
+        panel.title = "保存 Markdown 文稿"
+        panel.message = "选择文件名和位置。保存后将自动保存后续修改。"
+        panel.nameFieldStringValue = session.suggestedName + ".md"
+        panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+        panel.allowsOtherFileTypes = false
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+        panel.prompt = "保存"
+        let response: NSApplication.ModalResponse = await withCheckedContinuation { continuation in
+            if let window = windows[session.id]?.window {
+                window.makeKeyAndOrderFront(nil)
+                panel.beginSheetModal(for: window) { continuation.resume(returning: $0) }
+            } else {
+                panel.begin { continuation.resume(returning: $0) }
+            }
+        }
+        guard response == .OK, let destination = panel.url else { return .cancelled }
+        guard await flushEditor(session) else {
+            await showError("文稿尚未保存", message: session.issue ?? "请先完成正在输入的文字，然后重试保存。")
+            return .cancelled
+        }
+        do {
+            try await store.saveFirst(session, to: destination)
+            recentDocuments.record(destination)
+            updateWindow(for: session)
+            return .saved
+        } catch {
+            await showError("无法保存文稿", message: error.localizedDescription)
+            return .cancelled
         }
     }
 

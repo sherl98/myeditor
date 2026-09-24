@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
   MDXEditor,
@@ -26,7 +26,13 @@ import '@mdxeditor/editor/style.css'
 import { extractOutline, imagePreviewURL } from './markdown/markdown.js'
 import { rawMarkdownPlugin } from './markdown/rawMarkdown.jsx'
 import { engineBridgePlugin, runtime, post, postHistory } from './bridge/engineBridge.js'
-import { addWheelDelta, cancelWheel, navigate, refreshHeadingElements } from './editor/scrolling.js'
+import {
+  addWheelDelta,
+  cancelWheel,
+  navigate,
+  refreshHeadingElements,
+  captureReadingPosition,
+} from './editor/scrolling.js'
 import { codeBlockDescriptor } from './diagram/DiagramBlock.jsx'
 import { SourceEditor } from './editor/SourceEditor.jsx'
 import {
@@ -47,7 +53,6 @@ const plugins = [
   thematicBreakPlugin(),
   linkPlugin(),
   linkDialogPlugin(),
-  imagePlugin({ imagePreviewHandler: async (source) => imagePreviewURL(source) }),
   tablePlugin(),
   codeBlockPlugin({
     defaultCodeBlockLanguage: '',
@@ -73,6 +78,8 @@ const nextFrame = () =>
     })
   })
 let mountCount = 0
+let appliedLayoutKey
+let layoutGeneration = 0
 const compositionWaiters = new Set()
 function finishCompositionWaits() {
   for (const resolve of compositionWaiters) resolve()
@@ -135,6 +142,22 @@ function changed(source, initial = false) {
 function App() {
   const editorRef = useRef(null)
   const [readOnly, setReadOnly] = useState(true)
+  const [imageResourceBase, setImageResourceBase] = useState('')
+  const pluginsWithImages = useMemo(
+    () => [
+      ...plugins,
+      imagePlugin({
+        imagePreviewHandler: async (source) => {
+          const preview = imagePreviewURL(source)
+          if (!preview.startsWith('myeditor-resource:')) return preview
+          const url = new URL(preview)
+          url.searchParams.set('base', imageResourceBase)
+          return url.href
+        },
+      }),
+    ],
+    [imageResourceBase],
+  )
   const [showsSource, setShowsSource] = useState(false)
   const [sourcePreview, setSourcePreview] = useState('')
   const [fallback, setFallback] = useState(null)
@@ -222,6 +245,15 @@ function App() {
         return true
       },
       configure(options) {
+        const layoutKey = JSON.stringify([
+          options.readOnly,
+          options.fontPercent,
+          options.contentFontFace,
+          options.showsSource,
+        ])
+        const layoutChanged = appliedLayoutKey !== layoutKey
+        const restorePosition = layoutChanged ? captureReadingPosition() : () => {}
+        appliedLayoutKey = layoutKey
         const wasReadOnly = runtime.readOnly
         runtime.showsSource = !!options.showsSource
         setShowsSource(runtime.showsSource)
@@ -229,8 +261,8 @@ function App() {
         runtime.readOnly = options.readOnly
         setReadOnly(options.readOnly)
         document.documentElement.style.setProperty(
-          '--body-size',
-          String((21 * options.fontPercent) / 100) + 'px',
+          '--font-scale',
+          String(options.fontPercent / 100),
         )
         applyEditorFonts(document.documentElement, options)
         document.documentElement.style.setProperty(
@@ -262,6 +294,18 @@ function App() {
         }
         cancelWheel()
         refreshSearch()
+        if (layoutChanged) {
+          const generation = ++layoutGeneration
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              if (generation !== layoutGeneration) return
+              restorePosition()
+              refreshHeadingElements()
+              refreshSearch()
+            }),
+          )
+        }
+        setImageResourceBase(options.resourceBase || '')
       },
       async flush(commitComposition = false) {
         const revision = runtime.revision
@@ -424,7 +468,7 @@ function App() {
           readOnly={readOnly}
           trim={false}
           contentEditableClassName="document-content"
-          plugins={plugins}
+          plugins={pluginsWithImages}
           suppressHtmlProcessing={true}
           toMarkdownOptions={markdownOutput}
           onChange={changed}

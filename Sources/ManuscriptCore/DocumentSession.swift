@@ -9,7 +9,8 @@ public enum SaveReason: Sendable {
 @Observable @MainActor
 public final class DocumentSession: Identifiable {
     public let id = UUID()
-    public private(set) var url: URL
+    public private(set) var url: URL?
+    public private(set) var untitledName = "未命名"
     public private(set) var savedSnapshot: FileSnapshot
     public private(set) var draftSource: String?
     public private(set) var outline: [DocumentHeading] = []
@@ -69,10 +70,25 @@ public final class DocumentSession: Identifiable {
         restartWatcher()
     }
 
+    public init(untitledName: String, files: any DocumentFileAccess = DiskFileAccess()) {
+        self.untitledName = untitledName
+        self.url = nil
+        self.savedSnapshot = FileSnapshot(source: "")
+        self.confirmedEditorSource = ""
+        self.files = files
+        self.watchesFile = true
+        self.isEditing = true
+    }
+
+    public var isUntitled: Bool { url == nil }
+    public var displayName: String { url?.lastPathComponent ?? untitledName }
+    public var suggestedName: String {
+        url?.deletingPathExtension().lastPathComponent ?? untitledName
+    }
     public var source: String { draftSource ?? ManuscriptCodec.editorSource(savedSnapshot.source) }
     public var title: String {
         outline.first(where: { $0.level == 1 })?.title
-            ?? url.deletingPathExtension().lastPathComponent
+            ?? suggestedName
     }
     public var primaryHeadings: [DocumentHeading] { ManuscriptCodec.primaryHeadings(outline) }
     public var activeHeadingIndex: Int { outline.firstIndex { $0.id == activeHeadingID } ?? 0 }
@@ -97,7 +113,7 @@ public final class DocumentSession: Identifiable {
         if isComposing { return "正在输入…" }
         if isRenaming { return "正在重命名…" }
         if isSaving { return "正在保存…" }
-        if hasUnsavedChanges { return "尚未保存" }
+        if isUntitled || hasUnsavedChanges { return "尚未保存" }
         if let editorNotice { return editorNotice }
         return "已同步到源文件"
     }
@@ -138,7 +154,7 @@ public final class DocumentSession: Identifiable {
         }
         guard
             destination.standardizedFileURL.resolvingSymlinksInPath()
-                != url.standardizedFileURL.resolvingSymlinksInPath()
+                != url?.standardizedFileURL.resolvingSymlinksInPath()
         else { throw ManuscriptError.invalidName }
         return try await files.writeCopy(
             destination,
@@ -176,7 +192,8 @@ public final class DocumentSession: Identifiable {
         isEditing = true
     }
     @discardableResult public func finishEditing() async -> Bool {
-        guard await save(.done) else { return false }
+        guard !isComposing, !editorHasPendingChanges, !editorRecoveryRequired else { return false }
+        if !isUntitled, !(await save(.done)) { return false }
         isEditing = false
         return true
     }
@@ -225,7 +242,9 @@ public final class DocumentSession: Identifiable {
     }
     private func scheduleAutoSave() {
         autoSaveTask?.cancel()
-        guard !isComposing, !hasConflict, !isClosing, !isRenaming, draftSource != nil else {
+        guard !isUntitled, !isSaving, !isComposing, !hasConflict, !isClosing, !isRenaming,
+            draftSource != nil
+        else {
             return
         }
         autoSaveTask = Task { [weak self] in
@@ -236,11 +255,14 @@ public final class DocumentSession: Identifiable {
         }
     }
     public func serializedSource() -> String {
+        if isUntitled { return source }
         guard let draftSource else { return savedSnapshot.source }
         return ManuscriptCodec.encodedSource(draftSource, matching: savedSnapshot.source)
     }
 
     @discardableResult public func save(_ reason: SaveReason) async -> Bool {
+        // A successful no-op must never stand in for an untitled document's first save.
+        guard !isUntitled else { return false }
         if let renameTask {
             do { try await renameTask.value } catch { return false }
         }
@@ -277,6 +299,10 @@ public final class DocumentSession: Identifiable {
         else { throw ManuscriptError.invalidName }
         if !name.lowercased().hasSuffix(".md") { name += ".md" }
         guard name.utf8.count <= 255 else { throw ManuscriptError.invalidName }
+        guard let url else {
+            untitledName = String(name.dropLast(3))
+            return
+        }
         if name == url.lastPathComponent { return }
         guard !isComposing else { throw ManuscriptError.composing }
         guard !editorHasPendingChanges else { throw ManuscriptError.editorUnavailable }
@@ -299,7 +325,7 @@ public final class DocumentSession: Identifiable {
         guard !isClosed else { throw ManuscriptError.closed }
         let task = Task { @MainActor in
             let snapshot = try await self.files.rename(
-                self.url, to: destination, expectedRevision: self.savedSnapshot.revision)
+                url, to: destination, expectedRevision: self.savedSnapshot.revision)
             self.url = destination
             self.savedSnapshot = snapshot
             self.fileUnavailable = false
@@ -321,12 +347,13 @@ public final class DocumentSession: Identifiable {
     private func restartWatcher() {
         watcher?.stop()
         watcher = nil
-        guard watchesFile, !isClosed else { return }
+        guard watchesFile, !isClosed, let url else { return }
         watcher = DocumentWatcher(url: url) { [weak self] in
             Task { @MainActor [weak self] in self?.scheduleExternalCheck() }
         }
     }
     private func drainSaves() async -> Bool {
+        guard let url else { return false }
         do {
             if fileUnavailable {
                 let latest = try await files.read(url)
@@ -379,7 +406,7 @@ public final class DocumentSession: Identifiable {
     }
 
     public func scheduleExternalCheck() {
-        guard !isClosed else { return }
+        guard !isClosed, !isUntitled else { return }
         externalTask?.cancel()
         externalTask = Task { [weak self] in
             do { try await Task.sleep(for: .milliseconds(180)) } catch { return }
@@ -389,7 +416,7 @@ public final class DocumentSession: Identifiable {
         }
     }
     public func checkExternalChanges() async {
-        guard !isClosed, !editorRecoveryRequired else { return }
+        guard !isClosed, !editorRecoveryRequired, let url else { return }
         if isSaving || isRenaming {
             pendingExternalCheck = true
             return
@@ -403,7 +430,7 @@ public final class DocumentSession: Identifiable {
             }
             try await Task.sleep(for: .milliseconds(100))
             let stable = try await files.read(url)
-            guard !isClosed, !isRenaming, checkedURL == url else { return }
+            guard !isClosed, !isRenaming, checkedURL == self.url else { return }
             guard stable.revision == first.revision, savedSnapshot.revision == baseline, !isSaving
             else {
                 scheduleExternalCheck()
@@ -411,7 +438,7 @@ public final class DocumentSession: Identifiable {
             }
             if !hasUnsavedChanges, !isComposing, let prepareForExternalReload {
                 guard await prepareForExternalReload() else { return }
-                guard !isClosed, !isRenaming, checkedURL == url else { return }
+                guard !isClosed, !isRenaming, checkedURL == self.url else { return }
                 guard savedSnapshot.revision == baseline, !isSaving else {
                     scheduleExternalCheck()
                     return
@@ -427,7 +454,7 @@ public final class DocumentSession: Identifiable {
                 acceptExternal(stable)
             }
         } catch is CancellationError { return } catch {
-            guard !isClosed, !isRenaming, checkedURL == url else { return }
+            guard !isClosed, !isRenaming, checkedURL == self.url else { return }
             issue = error.localizedDescription
             fileUnavailable = true
         }
@@ -437,7 +464,7 @@ public final class DocumentSession: Identifiable {
         autoSaveTask?.cancel()
     }
     @discardableResult public func loadExternalVersion() async -> Bool {
-        guard !isSaving, !isComposing, !isClosed else { return false }
+        guard !isSaving, !isComposing, !isClosed, let url else { return false }
         do {
             acceptExternal(try await files.read(url))
             return true
@@ -471,6 +498,44 @@ public final class DocumentSession: Identifiable {
         guard !isComposing else { throw ManuscriptError.composing }
         guard !editorHasPendingChanges else { throw ManuscriptError.editorUnavailable }
         return try await files.writeCopy(destination, source: serializedSource())
+    }
+
+    /// Bind the destination only after an atomic write succeeds. The editor is never reloaded.
+    public func saveFirst(to destination: URL) async throws {
+        guard !isClosed else { throw ManuscriptError.closed }
+        guard isUntitled, !isSaving else { throw ManuscriptError.operationInProgress }
+        guard !isComposing else { throw ManuscriptError.composing }
+        guard !editorHasPendingChanges, !editorRecoveryRequired else {
+            throw ManuscriptError.editorUnavailable
+        }
+        let accessing = destination.startAccessingSecurityScopedResource()
+        var adoptedAccess = false
+        isSaving = true
+        defer {
+            isSaving = false
+            if accessing && !adoptedAccess { destination.stopAccessingSecurityScopedResource() }
+            if !isClosed { scheduleAutoSave() }
+        }
+        let capturedGeneration = generation
+        do {
+            let snapshot = try await files.writeCopy(destination, source: serializedSource())
+            guard !isClosed else { throw ManuscriptError.closed }
+            url = destination.standardizedFileURL.resolvingSymlinksInPath()
+            if accessing {
+                securityScopedURL = destination
+                adoptedAccess = true
+            }
+            savedSnapshot = snapshot
+            savedGeneration = capturedGeneration
+            if generation == capturedGeneration { draftSource = nil }
+            successfulSaveCount += 1
+            lastSavedAt = Date()
+            issue = nil
+            restartWatcher()
+        } catch {
+            issue = error.localizedDescription
+            throw error
+        }
     }
     public func close() {
         guard !isClosed else { return }

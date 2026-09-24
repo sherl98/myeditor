@@ -1,6 +1,8 @@
 :root {
   color-scheme: light;
-  --body-size: 21px;
+  --font-scale: 1;
+  --body-size: calc(18px * var(--font-scale));
+  --page-gutter: clamp(18px, 4vw, 36px);
   --content-font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
   --content-font-weight: 400;
   --content-font-style: normal;
@@ -39,13 +41,11 @@ body {
   background: var(--page-bg);
 }
 .editor-stage {
-  width: min(calc(100% - var(--rail-offset)), 914px);
-  margin-left: max(
-    var(--body-optical-offset),
-    calc((100% - 914px - var(--rail-offset)) / 2 + var(--body-optical-offset))
-  );
-  margin-right: auto;
-  padding: 38px 42px 100px;
+  font-family: var(--content-font-family);
+  font-size: var(--body-size);
+  width: min(100%, calc(40ic + 2 * var(--page-gutter)));
+  margin-inline: auto;
+  padding: 26px var(--page-gutter) 80px;
 }
 .mdxeditor {
   --baseText: var(--text);
@@ -64,14 +64,31 @@ body {
   font-weight: var(--content-font-weight);
   font-style: var(--content-font-style);
   font-size: var(--body-size);
-  line-height: 1.55;
+  line-height: 1.65;
+  letter-spacing: normal;
+  text-autospace: ideograph-alpha ideograph-numeric;
+  text-wrap-style: stable;
+  line-break: strict;
   color: var(--text);
   caret-color: #0a84ff;
   overflow-wrap: break-word;
   word-break: normal;
 }
 .document-content p {
-  margin: 0 0 1.15em;
+  margin: 0 0 1em;
+}
+.read-only .document-content {
+  text-wrap-style: pretty;
+}
+.read-only .document-content :is(h1, h2, h3, h4, h5, h6) {
+  text-wrap-style: balance;
+}
+.document-content :is(pre, code),
+.cm-editor,
+.diagram-block {
+  text-autospace: no-autospace;
+  text-wrap-style: stable;
+  line-break: auto;
 }
 .document-content h1,
 .document-content h2,
@@ -383,11 +400,6 @@ body {
 }
 .source-fallback .cm-editor {
   min-height: calc(100vh - 180px);
-}
-@media (max-width: 800px) {
-  .editor-stage {
-    padding-inline: 28px;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   * {

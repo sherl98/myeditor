@@ -29,15 +29,16 @@ final class ReaderWindowController: NSWindowController, NSWindowDelegate, NSTool
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered,
             defer: false)
-        window.title = session.url.lastPathComponent
+        window.title = session.displayName
         window.titleVisibility = .hidden
         window.representedURL = session.url
+        window.isDocumentEdited = session.isUntitled || session.hasUnsavedChanges
         window.tabbingIdentifier = "NovelReader.documents"
         window.tabbingMode = .preferred
         window.acceptsMouseMovedEvents = true
-        window.tab.title = session.url.lastPathComponent
-        window.tab.attributedTitle = Self.tabTitle(session.url.lastPathComponent)
-        window.tab.toolTip = session.url.path
+        window.tab.title = session.displayName
+        window.tab.attributedTitle = Self.tabTitle(session.displayName)
+        window.tab.toolTip = session.url?.path ?? "尚未保存"
         window.isRestorable = false
         window.isReleasedWhenClosed = false
         window.minSize = ReaderPreferences.minimumWindowSize
@@ -88,12 +89,12 @@ final class ReaderWindowController: NSWindowController, NSWindowDelegate, NSTool
         titlePresentation.isShowingActions.toggle()
     }
     func updateDocumentMetadata() {
-        window?.title = session.url.lastPathComponent
+        window?.title = session.displayName
         window?.representedURL = session.url
-        window?.tab.title = session.url.lastPathComponent
-        window?.tab.attributedTitle = Self.tabTitle(session.url.lastPathComponent)
-        window?.tab.toolTip = session.url.path
-        window?.isDocumentEdited = session.hasUnsavedChanges
+        window?.tab.title = session.displayName
+        window?.tab.attributedTitle = Self.tabTitle(session.displayName)
+        window?.tab.toolTip = session.url?.path ?? "尚未保存"
+        window?.isDocumentEdited = session.isUntitled || session.hasUnsavedChanges
     }
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         if permitClose { return true }

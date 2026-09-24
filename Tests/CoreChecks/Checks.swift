@@ -57,7 +57,7 @@ struct CheckFailure: Error, CustomStringConvertible { let description: String }
             try expect(session.isEditing, "Any UTF-8 Markdown enters editing")
             try expect(await session.finishEditing(), "Unchanged mode toggle succeeds")
             try expect(
-                try String(contentsOf: session.url, encoding: .utf8) == text
+                try String(contentsOf: session.url!, encoding: .utf8) == text
                     && session.successfulSaveCount == 0,
                 "Read/edit toggle never normalizes an untouched file")
             replace(session, with: "")
@@ -73,7 +73,7 @@ struct CheckFailure: Error, CustomStringConvertible { let description: String }
         replace(session, with: "# 新标题\n\n全文替换。\n\n###### 新小节")
         try expect(
             await session.save(.explicit), "Arbitrary structure can replace the whole document")
-        let data = try Data(contentsOf: session.url)
+        let data = try Data(contentsOf: session.url!)
         let result = String(decoding: data, as: UTF8.self)
         try expect(data.starts(with: [0xef, 0xbb, 0xbf]), "BOM survives WYSIWYG save")
         try expect(
@@ -121,13 +121,13 @@ struct CheckFailure: Error, CustomStringConvertible { let description: String }
         try await Task.sleep(for: .milliseconds(850))
         try expect(!(await a.save(.explicit)), "Composition blocks explicit and idle writes")
         try expect(
-            !(try String(contentsOf: a.url, encoding: .utf8)).contains("zhongwen"),
+            !(try String(contentsOf: a.url!, encoding: .utf8)).contains("zhongwen"),
             "Candidate text never reaches disk")
         replace(a, with: original + "中文")
         a.setComposing(false)
         try expect(await a.save(.composition), "Confirmed input saves")
         try expect(
-            !(try String(contentsOf: a.url, encoding: .utf8)).contains("zhongwen"),
+            !(try String(contentsOf: a.url!, encoding: .utf8)).contains("zhongwen"),
             "Confirmed text replaces candidate")
         try expect(await a.finishEditing() && a.canUndo, "Returning to read-only retains history")
         try await Task.sleep(for: .milliseconds(350))
@@ -138,7 +138,7 @@ struct CheckFailure: Error, CustomStringConvertible { let description: String }
         let s = try await session("conflicts")
         defer { s.close() }
         let external = "普通正文，没有标题。\n"
-        try external.write(to: s.url, atomically: true, encoding: .utf8)
+        try external.write(to: s.url!, atomically: true, encoding: .utf8)
         await s.checkExternalChanges()
         try expect(
             s.source == external && s.documentRevision == 1,
@@ -149,12 +149,12 @@ struct CheckFailure: Error, CustomStringConvertible { let description: String }
             "Old document revision cannot overwrite an external reload")
         edit(s, suffix: "本地草稿")
         let newer = external + "外部修改。\n"
-        try newer.write(to: s.url, atomically: true, encoding: .utf8)
+        try newer.write(to: s.url!, atomically: true, encoding: .utf8)
         await s.checkExternalChanges()
         try expect(s.hasConflict && s.source.contains("本地草稿"), "External conflict preserves draft")
         try expect(!(await s.save(.explicit)), "Conflict blocks overwrite")
         try expect(
-            try String(contentsOf: s.url, encoding: .utf8) == newer, "External file stays intact")
+            try String(contentsOf: s.url!, encoding: .utf8) == newer, "External file stays intact")
         s.keepDraft()
         await s.checkExternalChanges()
         try expect(s.keptConflictingDraft, "Keep-draft choice survives unchanged watcher events")
@@ -168,25 +168,25 @@ struct CheckFailure: Error, CustomStringConvertible { let description: String }
             !s.hasConflict && !s.canUndo && !s.hasUnsavedChanges,
             "External acceptance resets history and draft")
         edit(s, suffix: "权限测试")
-        try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: s.url.path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: s.url!.path)
         try expect(
             !(await s.save(.explicit)) && s.hasUnsavedChanges, "Unwritable file retains draft")
-        try FileManager.default.setAttributes([.posixPermissions: 0o640], ofItemAtPath: s.url.path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o640], ofItemAtPath: s.url!.path)
         try expect(await s.save(.explicit), "Write can be retried")
         try expect(
-            (try FileManager.default.attributesOfItem(atPath: s.url.path)[.posixPermissions]
+            (try FileManager.default.attributesOfItem(atPath: s.url!.path)[.posixPermissions]
                 as? NSNumber)?.intValue == 0o640, "Atomic replacement preserves permissions")
         edit(s, suffix: "删除测试")
-        try FileManager.default.removeItem(at: s.url)
+        try FileManager.default.removeItem(at: s.url!)
         try expect(
-            !(await s.save(.close)) && !FileManager.default.fileExists(atPath: s.url.path),
+            !(await s.save(.close)) && !FileManager.default.fileExists(atPath: s.url!.path),
             "Missing file is not recreated by autosave")
     }
 
     func watcherAndResources() async throws {
         var current: DocumentSession? = try await session("watcher", watch: true)
         weak var released = current
-        let url = current!.url
+        let url = current!.url!
         try "外部原子替换。\n".write(to: url, atomically: true, encoding: .utf8)
         try await waitUntil("Watcher follows external atomic replacement") {
             current?.source == "外部原子替换。\n"
@@ -218,7 +218,7 @@ struct CheckFailure: Error, CustomStringConvertible { let description: String }
         defer { s.close() }
         let original = s.source
         let external = "外部更新。\n"
-        try external.write(to: s.url, atomically: true, encoding: .utf8)
+        try external.write(to: s.url!, atomically: true, encoding: .utf8)
         var flushes = 0
         s.prepareForExternalReload = { [weak s] in
             guard let s else { return false }
@@ -232,12 +232,12 @@ struct CheckFailure: Error, CustomStringConvertible { let description: String }
             s.hasConflict && s.source.contains("尚在桥接中的输入"),
             "Late browser input becomes a preserved conflict")
         try expect(
-            try String(contentsOf: s.url, encoding: .utf8) == external,
+            try String(contentsOf: s.url!, encoding: .utf8) == external,
             "Browser synchronization never overwrites the external version")
         let failed = try await session("bridge-unavailable")
         defer { failed.close() }
         failed.prepareForExternalReload = { false }
-        try external.write(to: failed.url, atomically: true, encoding: .utf8)
+        try external.write(to: failed.url!, atomically: true, encoding: .utf8)
         await failed.checkExternalChanges()
         try expect(
             failed.documentRevision == 0 && failed.source == fixture,
@@ -266,6 +266,7 @@ struct CheckFailure: Error, CustomStringConvertible { let description: String }
                 return
             }
             try await checks.formatsAndModes()
+            try await checks.newDocuments()
             try await checks.autosaveAndComposition()
             try await checks.conflictsAndFailures()
             try await checks.saveOrdering()

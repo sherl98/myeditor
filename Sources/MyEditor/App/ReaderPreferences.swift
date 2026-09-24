@@ -109,7 +109,7 @@ final class ReaderPreferences {
             green: CGFloat((value >> 8) & 255) / 255,
             blue: CGFloat(value & 255) / 255, alpha: 1)
     }
-    static let minimumWindowSize = NSSize(width: 640, height: 640)
+    static let minimumWindowSize = NSSize(width: 480, height: 640)
 
     init() {
         fontCatalog = EditorFontCatalog()

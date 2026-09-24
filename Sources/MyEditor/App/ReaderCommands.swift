@@ -5,6 +5,8 @@ struct ReaderCommands: Commands {
     let application: ApplicationController
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
+            Button("新建文稿", action: application.newDocument).keyboardShortcut("n")
+                .disabled(application.isQuitting)
             Button("打开文档…", action: application.openPicker).keyboardShortcut("o")
         }
         CommandGroup(replacing: .saveItem) {

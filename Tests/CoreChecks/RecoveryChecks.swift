@@ -32,7 +32,7 @@ extension Checks {
             try String(contentsOf: copy, encoding: .utf8) == "# Saved\n\nConfirmed draft\n",
             "Recovery copy excludes unconfirmed IME candidate")
         try expect(
-            try String(contentsOf: s.url, encoding: .utf8) == "# Saved\n",
+            try String(contentsOf: s.url!, encoding: .utf8) == "# Saved\n",
             "Recovery export preserves original")
         s.receiveEditorSource("stale", sequence: 999, revision: revision)
         s.prepareEditorRecovery()
@@ -44,7 +44,7 @@ extension Checks {
         try expect(
             await s.save(.explicit), "Recovered editor accepts fresh sequence and saves normally")
         try expect(
-            try String(contentsOf: s.url, encoding: .utf8).hasSuffix("New edit\n"),
+            try String(contentsOf: s.url!, encoding: .utf8).hasSuffix("New edit\n"),
             "Recovered new edits reach disk")
     }
 }
