@@ -36,16 +36,21 @@
 html {
   overflow-x: hidden;
 }
+/* Keep classic scrollbars from shifting the rendered page's visual center. */
+html:has(.editor-stage:not(.source-stage)) {
+  scrollbar-gutter: stable both-edges;
+}
 body {
   margin: 0;
   background: var(--page-bg);
 }
 .editor-stage {
+  --reader-gutter: max(var(--page-gutter), calc(var(--rail-offset) + var(--body-optical-offset)));
   font-family: var(--content-font-family);
   font-size: var(--body-size);
-  width: min(100%, calc(40ic + 2 * var(--page-gutter)));
+  width: min(100%, calc(40ic + 2 * var(--reader-gutter)));
   margin-inline: auto;
-  padding: 26px var(--page-gutter) 80px;
+  padding: 26px var(--reader-gutter) 80px;
 }
 .mdxeditor {
   --baseText: var(--text);
@@ -77,8 +82,12 @@ body {
 .document-content p {
   margin: 0 0 1em;
 }
-.read-only .document-content {
-  text-wrap-style: pretty;
+/* Keep the full line measure: pretty retreats early in CJK paragraphs and
+   creates loose spacing when combined with justification. */
+.read-only .document-content > p,
+.read-only .document-content blockquote > p {
+  text-align: justify;
+  text-align-last: start;
 }
 .read-only .document-content :is(h1, h2, h3, h4, h5, h6) {
   text-wrap-style: balance;
@@ -411,7 +420,7 @@ body {
 .editor-stage.source-stage {
   width: 100%;
   margin: 0;
-  padding: 20px 24px 72px 4px;
+  padding: 20px 24px 72px calc(4px + var(--rail-offset));
 }
 .source-document {
   --source-heading: #175bb5;

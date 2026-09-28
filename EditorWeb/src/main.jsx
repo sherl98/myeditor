@@ -250,6 +250,8 @@ function App() {
           options.fontPercent,
           options.contentFontFace,
           options.showsSource,
+          options.railOffset,
+          options.bodyOpticalOffset,
         ])
         const layoutChanged = appliedLayoutKey !== layoutKey
         const restorePosition = layoutChanged ? captureReadingPosition() : () => {}

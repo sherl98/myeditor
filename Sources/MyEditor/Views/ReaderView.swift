@@ -11,11 +11,7 @@ struct ReaderView: View {
             if session.hasConflict || session.issue != nil {
                 DocumentNotice(session: session, application: application)
             }
-            HStack(spacing: 0) {
-                if !session.primaryHeadings.isEmpty {
-                    ChapterRail(session: session, application: application)
-                        .frame(width: 58).padding(.vertical, 28).zIndex(1)
-                }
+            ZStack(alignment: .leading) {
                 MarkdownWebEditor(
                     session: session, application: application,
                     configuration: MarkdownEditorConfiguration(
@@ -24,6 +20,11 @@ struct ReaderView: View {
                         bodyOpticalOffset: bodyOpticalOffset)
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // The rail lives in the page gutter; it must not shift the page's center.
+                if !session.primaryHeadings.isEmpty {
+                    ChapterRail(session: session, application: application)
+                        .frame(width: 58).padding(.vertical, 28).zIndex(1)
+                }
             }
             Divider()
             HStack(spacing: 6) {
