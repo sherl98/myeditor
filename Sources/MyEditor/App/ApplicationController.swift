@@ -20,7 +20,8 @@ final class ApplicationController {
     @ObservationIgnored private var editors: [UUID: WeakMarkdownEditor] = [:]
     @ObservationIgnored private var welcome: WelcomeWindowController?
     @ObservationIgnored private var closing: Set<UUID> = []
-    @ObservationIgnored private var pickerVisible = false
+    @ObservationIgnored private var openPanel: NSOpenPanel?
+    @ObservationIgnored private var createAfterPicker = false
     @ObservationIgnored private var savingDocuments: Set<UUID> = []
     @ObservationIgnored private var openingTask: Task<Void, Never>?
     @ObservationIgnored private var appearanceChangeID = 0
@@ -74,32 +75,19 @@ final class ApplicationController {
     }
 
     func openPicker() {
-        guard !pickerVisible, !isQuitting else { return }
-        pickerVisible = true
-        let panel = NSOpenPanel()
-        panel.title = "打开 Markdown 文档"
-        panel.message = "选择一个或多个 Markdown 文档。"
-        panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        panel.canChooseFiles = true
-        panel.prompt = "打开"
-        var createNew = false
-        panel.accessoryView = NSHostingView(
-            rootView:
-                HStack {
-                    Button("新建文稿") { [weak panel] in
-                        createNew = true
-                        panel?.cancel(nil)
-                    }
-                    Spacer()
-                }.padding(.vertical, 6).frame(width: 260, height: 40)
-        )
-        panel.isAccessoryViewDisclosed = true
+        guard openPanel == nil, !isQuitting else { return }
+        let panel = DocumentOpenPanel.make()
+        openPanel = panel
         let completion: (NSApplication.ModalResponse) -> Void = { [weak self] response in
             guard let self else { return }
-            self.pickerVisible = false
-            if createNew { self.newDocument() } else if response == .OK { self.open(panel.urls) }
+            self.openPanel = nil
+            panel.orderOut(nil)
+            if self.createAfterPicker {
+                self.createAfterPicker = false
+                self.newDocument()
+            } else if response == .OK {
+                self.open(panel.urls)
+            }
         }
         if let window = NSApp.keyWindow {
             panel.beginSheetModal(for: window, completionHandler: completion)
@@ -109,7 +97,12 @@ final class ApplicationController {
     }
 
     func newDocument() {
-        guard !isQuitting, !pickerVisible else { return }
+        guard !isQuitting else { return }
+        if let panel = openPanel {
+            createAfterPicker = true
+            panel.cancel(nil)
+            return
+        }
         present(store.createDocument(), accessURL: nil)
     }
 
@@ -512,7 +505,7 @@ final class ApplicationController {
 
     func terminate() -> NSApplication.TerminateReply {
         guard !isQuitting else { return .terminateLater }
-        guard savingDocuments.isEmpty, closing.isEmpty, !pickerVisible else {
+        guard savingDocuments.isEmpty, closing.isEmpty, openPanel == nil else {
             return .terminateCancel
         }
         isQuitting = true

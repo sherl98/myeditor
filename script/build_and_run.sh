@@ -3,7 +3,7 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
 APP_VERSION="2.0.0"
-APP_BUILD="18"
+APP_BUILD="19"
 BUNDLE_IDENTIFIER="local.novelreader.app"
 EXECUTABLE_NAME="MyEditor"
 PROCESS_PATTERN="NovelReader|MyEditor"

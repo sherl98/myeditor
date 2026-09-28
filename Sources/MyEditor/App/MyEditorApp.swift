@@ -13,6 +13,14 @@ struct MyEditorApp: App {
 
 @MainActor
 final class ReaderAppDelegate: NSObject, NSApplicationDelegate {
+    private var documentController: ReaderDocumentController?
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        documentController = ReaderDocumentController()
+    }
+
+    func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { false }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         ApplicationController.shared.launch()
     }

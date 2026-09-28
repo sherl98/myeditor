@@ -17,6 +17,9 @@
                 }
                 throw FeatureIntegrationChecks.Failure(message: message)
             }
+            try check(
+                NSDocumentController.shared is ReaderDocumentController,
+                "Native picker new-document routing uses the application document controller")
             application.newDocument()
             guard let session = application.activeSession else {
                 throw FeatureIntegrationChecks.Failure(message: "New document opens")
