@@ -7,12 +7,12 @@ let package = Package(
     products: [
         .library(name: "ManuscriptCore", targets: ["ManuscriptCore"]),
         .executable(name: "MyEditor", targets: ["MyEditor"]),
-        .executable(name: "NovelReaderChecks", targets: ["NovelReaderChecks"]),
+        .executable(name: "CoreChecks", targets: ["CoreChecks"]),
     ],
     targets: [
         .target(name: "ManuscriptCore"),
         .executableTarget(name: "MyEditor", dependencies: ["ManuscriptCore"]),
         .executableTarget(
-            name: "NovelReaderChecks", dependencies: ["ManuscriptCore"], path: "Tests/CoreChecks"),
+            name: "CoreChecks", dependencies: ["ManuscriptCore"], path: "Tests/CoreChecks"),
     ]
 )

@@ -33,7 +33,7 @@ final class ReaderWindowController: NSWindowController, NSWindowDelegate, NSTool
         window.titleVisibility = .hidden
         window.representedURL = session.url
         window.isDocumentEdited = session.isUntitled || session.hasUnsavedChanges
-        window.tabbingIdentifier = "NovelReader.documents"
+        window.tabbingIdentifier = "MyEditor.documents"
         window.tabbingMode = .preferred
         window.acceptsMouseMovedEvents = true
         window.tab.title = session.displayName
@@ -62,7 +62,7 @@ final class ReaderWindowController: NSWindowController, NSWindowDelegate, NSTool
         window.contentView = FileDropHostingView(
             rootView: ReaderView(session: session, application: application),
             application: application)
-        let toolbar = NSToolbar(identifier: "NovelReader.readerToolbar")
+        let toolbar = NSToolbar(identifier: "MyEditor.documentToolbar")
         toolbar.delegate = self
         toolbar.displayMode = .iconOnly
         toolbar.allowsUserCustomization = false
@@ -143,7 +143,7 @@ final class ReaderWindowController: NSWindowController, NSWindowDelegate, NSTool
             let host = NSHostingView(
                 rootView: DocumentSearchView(
                     session: session, application: application,
-                    state: application.searchState(for: session)))
+                    state: application.searching.state(for: session)))
             host.setContentHuggingPriority(.defaultLow, for: .horizontal)
             host.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
             // A search field wider than this only moves its buttons away.

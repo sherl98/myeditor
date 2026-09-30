@@ -61,9 +61,9 @@
             }
             func query(_ text: String, session: DocumentSession) async throws -> DocumentSearchState
             {
-                let state = application.searchState(for: session)
+                let state = application.searching.state(for: session)
                 state.query = text
-                application.search(session)
+                application.searching.search(session)
                 try await wait("Search completes: \(text)") { !state.isSearching }
                 if let message = state.message { throw Failure(message: message) }
                 return state
@@ -71,9 +71,9 @@
             func replace(_ session: DocumentSession, with text: String, all: Bool = true)
                 async throws
             {
-                let state = application.searchState(for: session)
+                let state = application.searching.state(for: session)
                 state.replacement = text
-                application.replace(session, all: all)
+                application.searching.replace(session, all: all)
                 try await wait("Replace completes") { !state.isReplacing }
                 if state.message?.contains("请重新") == true { throw Failure(message: state.message!) }
             }

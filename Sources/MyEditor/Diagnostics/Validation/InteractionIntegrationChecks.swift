@@ -47,7 +47,7 @@
 
             // Synthetic key events do not follow the hardware ⌘Z path, so the
             // menu actions are invoked directly with each focus.
-            application.focusSearch()
+            application.searching.focus()
             try await wait("Search field focused") { field.currentEditor() != nil }
             guard let editor = field.currentEditor() as? NSTextView else {
                 throw FeatureIntegrationChecks.Failure(message: "Field editor exists")
@@ -66,7 +66,7 @@
             try check(
                 session.source == edited, "Undo in the search field leaves the document alone")
 
-            application.endSearch(session, returnToDocument: true)
+            application.searching.end(session, returnToDocument: true)
             window.makeFirstResponder(bridge.webView)
             NSApp.updateWindows()
             try await wait("Document focus is tracked") { !application.nativeTextFocused }

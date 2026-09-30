@@ -59,7 +59,7 @@ struct MarkdownEditorConfiguration: Equatable {
         appearance = application.preferences.appearance.rawValue
         resolvedDarkAppearance = application.preferences.resolvedDarkAppearance
         accent = application.preferences.accentHex
-        preserveFocus = !application.searchState(for: session).query.isEmpty
+        preserveFocus = !application.searching.state(for: session).query.isEmpty
         remoteImages = application.loadsRemoteImages(session)
         self.railOffset = railOffset
         self.bodyOpticalOffset = bodyOpticalOffset
@@ -186,7 +186,7 @@ struct MarkdownWebEditor: NSViewRepresentable {
                         == true
             #endif
             loadedRevision = session.documentRevision
-            application.searchState(for: session).resetForReload()
+            application.searching.state(for: session).resetForReload()
             session.setEditorReady(false)
             appliedConfiguration = nil
             webView.callAsyncJavaScript(
@@ -213,7 +213,7 @@ struct MarkdownWebEditor: NSViewRepresentable {
             case "loaded":
                 session.setEditorReady(true)
                 update(reduceMotion: reduceMotion, configuration: configuration)
-                application.search(session)
+                application.searching.search(session)
                 if session.isUntitled, session.isEditing, application.activeDocumentID == session.id
                 {
                     focusDocument()
@@ -239,7 +239,7 @@ struct MarkdownWebEditor: NSViewRepresentable {
                 session.updateHistory(
                     canUndo: body["canUndo"] as? Bool ?? false,
                     canRedo: body["canRedo"] as? Bool ?? false)
-            case "search": application.searchState(for: session).receive(body)
+            case "search": application.searching.state(for: session).receive(body)
             case "composition": session.setComposing(body["composing"] as? Bool ?? false)
             case "notice": session.setEditorNotice(body["message"] as? String)
             case "remoteImages":
@@ -353,7 +353,7 @@ struct MarkdownWebEditor: NSViewRepresentable {
                 in: .page
             ) { [weak self] result in
                 if case .failure = result, let self {
-                    let state = self.application.searchState(for: self.session)
+                    let state = self.application.searching.state(for: self.session)
                     if state.requestID == requestID {
                         state.isSearching = false
                         state.message = "搜索暂时不可用，请重试。"

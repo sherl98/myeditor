@@ -4,9 +4,9 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
 APP_VERSION="2.0.0"
 APP_BUILD="19"
-BUNDLE_IDENTIFIER="local.novelreader.app"
+BUNDLE_IDENTIFIER="io.github.sherl98.myeditor"
 EXECUTABLE_NAME="MyEditor"
-PROCESS_PATTERN="NovelReader|MyEditor"
+PROCESS_PATTERN="MyEditor"
 DEBUG_PRODUCT="debug"
 CONFIGURATION=debug
 LAUNCH=1
@@ -26,7 +26,7 @@ for OPTION in "$@"; do
         --verify) VERIFY=1 ;;
         --logs|--telemetry) LOGS=1 ;;
         --debug) DEBUGGER=1 ;;
-        --nested-sandbox) export NOVELREADER_NESTED_SANDBOX=1 ;;
+        --nested-sandbox) export MYEDITOR_NESTED_SANDBOX=1 ;;
         --app-already-closed) APP_ALREADY_CLOSED=1 ;;
         --metrics) METRICS=1 ;;
         --editor-checks) EDITOR_CHECKS=1; METRICS=1 ;;
@@ -60,7 +60,7 @@ if [[ "$APP_ALREADY_CLOSED" == "0" && "$LAUNCH" == "1" ]]; then
     /usr/bin/pgrep -x "$PROCESS_PATTERN" >/dev/null 2>&1 && PROCESS_STATUS=0 || PROCESS_STATUS=$?
 fi
 if [[ "$PROCESS_STATUS" -gt 1 ]]; then
-    echo "This host cannot inspect running processes. Close MyEditor / NovelReader through its UI, verify it exited, then use --app-already-closed." >&2
+    echo "This host cannot inspect running processes. Close MyEditor through its UI, verify it exited, then use --app-already-closed." >&2
     exit 1
 fi
 if [[ "$PROCESS_STATUS" == "0" ]]; then
@@ -188,7 +188,11 @@ cat > "$STAGING/Contents/Info.plist" <<PLIST
 </dict></plist>
 PLIST
 if [[ "$METRICS" == "1" ]]; then
-    VALIDATION_DIRECTORY="$PROJECT_ROOT/.cache/validation/$BUILD_IDENTIFIER/$(/usr/bin/uuidgen)"
+    # Physical path: .cache may be a symlink (e.g. to keep it out of iCloud), and
+    # checks compare fixture URLs with the app's canonical document URLs.
+    mkdir -p "$PROJECT_ROOT/.cache/validation"
+    VALIDATION_ROOT="$(cd "$PROJECT_ROOT/.cache/validation" && pwd -P)"
+    VALIDATION_DIRECTORY="$VALIDATION_ROOT/$BUILD_IDENTIFIER/$(/usr/bin/uuidgen)"
     mkdir -p "$VALIDATION_DIRECTORY"
     printf '%s\n' "$VALIDATION_DIRECTORY" > "$PROJECT_ROOT/.cache/last-validation-directory"
     node "$PROJECT_ROOT/Fixtures/large-manuscript.mjs" "$VALIDATION_DIRECTORY/large-manuscript.md"
@@ -272,4 +276,4 @@ if [[ "$VERIFY" == "1" || "$DEBUGGER" == "1" ]]; then
     /usr/bin/pgrep -x "$PROCESS_PATTERN"
 fi
 if [[ "$DEBUGGER" == "1" ]]; then exec /usr/bin/lldb -p "$(/usr/bin/pgrep -x "$PROCESS_PATTERN" | head -1)"; fi
-if [[ "$LOGS" == "1" ]]; then exec /usr/bin/log stream --level info --predicate 'subsystem == "local.novelreader.app"'; fi
+if [[ "$LOGS" == "1" ]]; then exec /usr/bin/log stream --level info --predicate 'subsystem == "io.github.sherl98.myeditor"'; fi

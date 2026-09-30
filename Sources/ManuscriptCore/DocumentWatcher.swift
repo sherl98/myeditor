@@ -26,7 +26,7 @@ public final class DocumentWatcher: @unchecked Sendable {
     /// All mutable state lives on this queue. Teardown captures this storage,
     /// not the watcher being deinitialized, and never waits on a cloud file.
     private final class State: @unchecked Sendable {
-        let queue = DispatchQueue(label: "local.novelreader.file-watcher", qos: .utility)
+        let queue = DispatchQueue(label: "io.github.sherl98.myeditor.file-watcher", qos: .utility)
         private let url: URL
         private let changed: @Sendable () -> Void
         private var fileSource: DispatchSourceFileSystemObject?

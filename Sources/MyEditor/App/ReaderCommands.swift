@@ -36,18 +36,22 @@ struct ReaderCommands: Commands {
         }
         CommandGroup(after: .textEditing) {
             Divider()
-            Button("查找…") { application.focusSearch() }.keyboardShortcut("f")
+            Button("查找…") { application.searching.focus() }.keyboardShortcut("f")
                 .disabled(application.activeSession == nil)
-            Button("查找并替换…") { application.focusSearch(replace: true) }.keyboardShortcut(
+            Button("查找并替换…") { application.searching.focus(replace: true) }.keyboardShortcut(
                 "f", modifiers: [.command, .option]
             )
             .disabled(application.activeSession == nil)
             Button("查找下一处") {
-                if let session = application.activeSession { application.findNext(session, by: 1) }
+                if let session = application.activeSession {
+                    application.searching.findNext(session, by: 1)
+                }
             }.keyboardShortcut("g")
                 .disabled(application.activeSession == nil)
             Button("查找上一处") {
-                if let session = application.activeSession { application.findNext(session, by: -1) }
+                if let session = application.activeSession {
+                    application.searching.findNext(session, by: -1)
+                }
             }.keyboardShortcut("g", modifiers: [.command, .shift])
                 .disabled(application.activeSession == nil)
         }

@@ -66,6 +66,29 @@ extension Checks {
             "An untitled name drops the typed extension")
     }
 
+    func legacyPreferences() throws {
+        let name = "MyEditorChecks-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: name) else {
+            throw CheckFailure(description: "Test defaults suite")
+        }
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set(120, forKey: "reader.fontPercent")
+        let legacy: [String: Any] = [
+            "reader.fontPercent": 90, "reader.appearance": "dark", "NSWindow Frame": "x",
+        ]
+        let copied = LegacyPreferences.migrate(from: legacy, into: defaults)
+        try expect(
+            copied == 1 && defaults.string(forKey: "reader.appearance") == "dark"
+                && defaults.integer(forKey: "reader.fontPercent") == 120
+                && defaults.object(forKey: "NSWindow Frame") == nil,
+            "Earlier reader settings are copied without replacing current ones")
+        defaults.removeObject(forKey: "reader.appearance")
+        try expect(
+            LegacyPreferences.migrate(from: legacy, into: defaults) == 0
+                && defaults.object(forKey: "reader.appearance") == nil,
+            "Settings migrate only once")
+    }
+
     func missingFileRecovery() async throws {
         let s = try await session("comes-back", watch: true)
         defer { s.close() }

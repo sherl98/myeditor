@@ -11,9 +11,9 @@ struct DocumentSearchView: View {
         HStack(spacing: 4) {
             NativeDocumentSearchField(
                 state: state,
-                changed: { application.search(session) },
-                navigate: { application.findNext(session, by: $0) },
-                ended: { application.endSearch(session, returnToDocument: true) }
+                changed: { application.searching.search(session) },
+                navigate: { application.searching.findNext(session, by: $0) },
+                ended: { application.searching.end(session, returnToDocument: true) }
             )
             .frame(minWidth: 60, maxWidth: .infinity, minHeight: 28)
             Text(state.counter).monospacedDigit().font(.system(size: 11)).foregroundStyle(
@@ -22,14 +22,14 @@ struct DocumentSearchView: View {
             .frame(width: 36).lineLimit(1).minimumScaleFactor(0.6)
             .accessibilityLabel("搜索结果：\(state.current) / \(state.count)")
             Button {
-                application.findNext(session, by: -1)
+                application.searching.findNext(session, by: -1)
             } label: {
                 Image(systemName: "chevron.up").frame(width: 22, height: 28)
             }
             .help("上一处 · ⇧⌘G").accessibilityLabel("上一处匹配")
             .disabled(state.count == 0 || state.isSearching)
             Button {
-                application.findNext(session, by: 1)
+                application.searching.findNext(session, by: 1)
             } label: {
                 Image(systemName: "chevron.down").frame(width: 22, height: 28)
             }
@@ -93,8 +93,8 @@ struct DocumentSearchView: View {
                 Text(state.message ?? (state.query.isEmpty ? "在顶部输入查找关键词" : "\(state.count) 处匹配"))
                     .font(.caption).foregroundStyle(.secondary).lineLimit(2)
                 Spacer()
-                Button("替换") { application.replace(session, all: false) }
-                Button("替换全部") { application.replace(session, all: true) }
+                Button("替换") { application.searching.replace(session, all: false) }
+                Button("替换全部") { application.searching.replace(session, all: true) }
             }
             .disabled(
                 !state.canReplace || session.isComposing || session.isClosing || session.showsSource

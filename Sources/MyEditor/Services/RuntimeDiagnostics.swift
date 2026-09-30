@@ -6,7 +6,8 @@ import OSLog
 /// Enabled only by the build script's --metrics flag, with output inside .cache/validation/<build>/<run>.
 @MainActor enum RuntimeDiagnostics {
     private static let runID = UUID().uuidString
-    private static let logger = Logger(subsystem: "local.novelreader.app", category: "performance")
+    private static let logger = Logger(
+        subsystem: "io.github.sherl98.myeditor", category: "performance")
 
     static func record(_ event: String, documents: Int, documentBytes: Int, released: Bool? = nil) {
         guard

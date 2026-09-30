@@ -12,13 +12,6 @@ enum ReaderAppearance: String, CaseIterable, Identifiable {
         case .dark: "深色"
         }
     }
-    var scheme: ColorScheme? {
-        switch self {
-        case .system: nil
-        case .light: .light
-        case .dark: .dark
-        }
-    }
 }
 
 enum ReaderAccent: String, CaseIterable, Identifiable {
@@ -83,8 +76,6 @@ final class ReaderPreferences {
     var loadRemoteImages: Bool {
         didSet { UserDefaults.standard.set(loadRemoteImages, forKey: "reader.loadRemoteImages") }
     }
-    var scale: CGFloat { CGFloat(fontPercent) / 100 }
-    var fontSize: CGFloat { 21 * scale }
     var accentChoice: ReaderAccent {
         didSet {
             UserDefaults.standard.set(accentChoice.rawValue, forKey: "reader.accentChoice")

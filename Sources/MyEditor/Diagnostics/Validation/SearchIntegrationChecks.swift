@@ -100,8 +100,8 @@
                         && inspected["mounts"] as? Int == 1,
                     "Display switching preserves source and editor history")
             }
-            let state = application.searchState(for: session)
-            application.focusSearch()
+            let state = application.searching.state(for: session)
+            application.searching.focus()
             try await wait("Search field receives focus") { field.currentEditor() != nil }
             try await Task.sleep(for: .milliseconds(250))
             func snapshot(_ name: String) async throws -> Data {
@@ -180,12 +180,12 @@
             // Pending search and reveal callbacks must never resurrect an old query.
             for query in ["小", "", "猫", "", "小猫"] {
                 state.query = query
-                application.search(session)
+                application.searching.search(session)
             }
             try await wait("Latest search wins") {
                 state.query == "小猫" && !state.isSearching && state.count > 0
             }
-            application.endSearch(session)
+            application.searching.end(session)
             try await wait("Final clear acknowledged") { state.pendingClearID == nil }
             try await Task.sleep(for: .milliseconds(400))
             let empty =

@@ -10,5 +10,5 @@ if [[ $# -gt 0 ]]; then shift; fi
 SWIFT_OPTIONS=(--cache-path "$PROJECT_ROOT/.cache/swiftpm" --config-path "$PROJECT_ROOT/.cache/config" --security-path "$PROJECT_ROOT/.cache/security")
 # SwiftPM cannot install its nested manifest sandbox inside some managed build hosts.
 # Only opt out there; the host's filesystem sandbox remains in effect.
-if [[ "${NOVELREADER_NESTED_SANDBOX:-0}" == "1" ]]; then SWIFT_OPTIONS+=(--disable-sandbox); fi
+if [[ "${MYEDITOR_NESTED_SANDBOX:-0}" == "1" ]]; then SWIFT_OPTIONS+=(--disable-sandbox); fi
 exec /usr/bin/swift "$SUBCOMMAND" "${SWIFT_OPTIONS[@]}" "$@"

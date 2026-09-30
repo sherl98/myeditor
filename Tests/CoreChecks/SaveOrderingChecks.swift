@@ -80,7 +80,7 @@ extension Checks {
         replace(session, with: beforeIME + "已确认。中文")
         session.setComposing(false)
         try expect(
-            await session.save(.composition), "Confirmed composition follows the previous write")
+            await session.save(.idle), "Confirmed composition follows the previous write")
 
         await files.failOneWrite()
         edit(session, suffix: "重试内容。")

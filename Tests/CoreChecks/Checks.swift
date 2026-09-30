@@ -125,7 +125,7 @@ struct CheckFailure: Error, CustomStringConvertible { let description: String }
             "Candidate text never reaches disk")
         replace(a, with: original + "中文")
         a.setComposing(false)
-        try expect(await a.save(.composition), "Confirmed input saves")
+        try expect(await a.save(.idle), "Confirmed input saves")
         try expect(
             !(try String(contentsOf: a.url!, encoding: .utf8)).contains("zhongwen"),
             "Confirmed text replaces candidate")
@@ -245,7 +245,7 @@ struct CheckFailure: Error, CustomStringConvertible { let description: String }
     }
 }
 
-@main struct NovelReaderChecks {
+@main struct DocumentChecksMain {
     @MainActor static func main() async {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
             "MyEditorChecks-\(UUID().uuidString)")
@@ -277,6 +277,7 @@ struct CheckFailure: Error, CustomStringConvertible { let description: String }
             try await checks.fileFidelity()
             try await checks.missingFileRecovery()
             try await checks.markdownExtensions()
+            try checks.legacyPreferences()
             print("PASS: \(checks.count) document checks. All writes used disposable fixtures.")
         } catch {
             print("FAIL: \(error)")

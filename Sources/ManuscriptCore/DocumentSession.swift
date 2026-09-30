@@ -3,7 +3,7 @@ import OSLog
 import Observation
 
 public enum SaveReason: Sendable {
-    case idle, explicit, focusLoss, navigation, done, undoRedo, close, composition
+    case idle, explicit, focusLoss, navigation, done, undoRedo, close
 }
 
 @Observable @MainActor
@@ -65,7 +65,8 @@ public final class DocumentSession: Identifiable {
     @ObservationIgnored private var securityScopedURL: URL?
     @ObservationIgnored private let watchesFile: Bool
     @ObservationIgnored private var conflictRevision: String?
-    private static let logger = Logger(subsystem: "local.novelreader.app", category: "documents")
+    private static let logger = Logger(
+        subsystem: "io.github.sherl98.myeditor", category: "documents")
 
     public init(
         url: URL, snapshot: FileSnapshot, files: any DocumentFileAccess = DiskFileAccess(),
