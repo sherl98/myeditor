@@ -13,7 +13,7 @@ final class ApplicationController {
             LegacyPreferences.migrate(
                 from: UserDefaults.standard.persistentDomain(
                     forName: LegacyPreferences.legacyDomain),
-                into: .standard)
+                into: UserDefaults.standard)
         }
         return ApplicationController()
     }()
