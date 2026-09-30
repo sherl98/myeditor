@@ -1,10 +1,11 @@
 {
   "schemaVersion": 1,
-  "name": "MyEditor 2.x short-term release budget",
+  "name": "MyEditor 2.x release budget",
   "limits": {
     "appLogicalBytes": 6800000,
     "archiveBytes": 2150000,
-    "editorHTMLBytes": 4800000,
+    "editorInitialBytes": 1450000,
+    "editorWebBytes": 5700000,
     "executableBytes": 1200000,
     "linkeditBytes": 220000,
     "nonExternalSymbols": 10,

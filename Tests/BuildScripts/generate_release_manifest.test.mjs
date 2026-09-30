@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 
 import {
   countSymbols,
+  editorInitialBytes,
   evaluateBudgets,
   logicalFileBytes,
   parseLinkeditBytes,
@@ -81,4 +82,22 @@ test('fingerprint excludes audit evidence and tests but includes release tools',
   assert.equal(await sourceFingerprint(root), initial)
   await writeFile(path.join(root, 'script/release/publish_release.mjs'), 'publication')
   assert.notEqual(await sourceFingerprint(root), initial)
+})
+
+test('editor initial bytes count the page and its direct assets, not lazy chunks', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'myeditor-editor-'))
+  try {
+    await mkdir(path.join(directory, 'assets'))
+    await writeFile(
+      path.join(directory, 'index.html'),
+      '<script type="module" src="./assets/main.js"></script><link rel="stylesheet" href="./assets/main.css">',
+    )
+    await writeFile(path.join(directory, 'assets', 'main.js'), 'a'.repeat(100))
+    await writeFile(path.join(directory, 'assets', 'main.css'), 'b'.repeat(10))
+    await writeFile(path.join(directory, 'assets', 'mermaid.js'), 'c'.repeat(1000))
+    const html = (await readFile(path.join(directory, 'index.html'))).length
+    assert.equal(await editorInitialBytes(directory), html + 110)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
 })

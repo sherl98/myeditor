@@ -39,7 +39,9 @@ export default defineConfig({
   build: {
     target: 'safari18',
     assetsInlineLimit: 0,
-    rollupOptions: { output: { inlineDynamicImports: true } },
-    chunkSizeWarningLimit: 3500,
+    // The page is served from the app bundle (EditorResourceHandler), so
+    // dynamic imports such as Mermaid stay separate and load on demand.
+    modulePreload: { polyfill: false },
+    chunkSizeWarningLimit: 1500,
   },
 })

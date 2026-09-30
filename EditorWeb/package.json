@@ -4,7 +4,7 @@
   "version": "2.0.0",
   "type": "module",
   "scripts": {
-    "build": "vite build && node scripts/inline.mjs && node scripts/licenses.mjs",
+    "build": "vite build && node scripts/licenses.mjs",
     "dev": "vite --host 127.0.0.1",
     "test": "node --test test/*.test.js"
   },

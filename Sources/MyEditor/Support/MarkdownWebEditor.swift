@@ -90,18 +90,18 @@ struct MarkdownWebEditor: NSViewRepresentable {
         configuration.setURLSchemeHandler(
             DocumentImageHandler(session: session),
             forURLScheme: "myeditor-resource")
+        configuration.setURLSchemeHandler(
+            EditorResourceHandler(), forURLScheme: EditorResourceHandler.scheme)
         let webView = MarkdownWKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         webView.setAccessibilityLabel("Markdown 文档正文")
         webView.registerForDraggedTypes(webView.registeredDraggedTypes + [.fileURL])
         context.coordinator.webView = webView
         application.registerEditor(context.coordinator, for: session)
-        if let html = Self.editorHTML {
-            // The bundle is a self-contained page. Do not give each WebKit
-            // process filesystem access to a bundle in Documents/Downloads.
-            // Document text arrives over the bridge; local images use the
-            // existing native resource handler, with the page's CSP intact.
-            webView.loadHTMLString(html, baseURL: nil)
+        if EditorResourceHandler.root != nil {
+            // Served by EditorResourceHandler: WebKit gets no file access, and
+            // code-split assets such as Mermaid load only when needed.
+            webView.load(URLRequest(url: EditorResourceHandler.pageURL))
         } else {
             session.reportEditorFailure()
             webView.loadHTMLString(
@@ -118,20 +118,6 @@ struct MarkdownWebEditor: NSViewRepresentable {
         view.configuration.userContentController.removeScriptMessageHandler(forName: "myEditor")
         view.navigationDelegate = nil
     }
-    private static var resourceURL: URL? {
-        let candidates = [
-            Bundle.main.resourceURL?.appendingPathComponent("EditorWeb/index.html"),
-            URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(
-                "EditorWeb/dist/index.html"),
-        ]
-        return candidates.compactMap { $0 }.first {
-            FileManager.default.fileExists(atPath: $0.path)
-        }
-    }
-    private static let editorHTML: String? = {
-        guard let resource = resourceURL else { return nil }
-        return try? String(contentsOf: resource, encoding: .utf8)
-    }()
 
     @MainActor
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate,
@@ -427,11 +413,10 @@ struct MarkdownWebEditor: NSViewRepresentable {
             session.editorDidTerminate()
         }
         func recover() {
-            guard session.editorRecoveryRequired, let html = MarkdownWebEditor.editorHTML,
-                let webView
+            guard session.editorRecoveryRequired, EditorResourceHandler.root != nil, let webView
             else { return }
             session.prepareEditorRecovery()
-            webView.loadHTMLString(html, baseURL: nil)
+            webView.load(URLRequest(url: EditorResourceHandler.pageURL))
         }
         func webView(
             _ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!,

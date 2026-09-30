@@ -52,6 +52,19 @@ export function countSymbols(nmOutput) {
   }
 }
 
+// Bytes the editor page loads before any document: the HTML plus the scripts,
+// preloads and stylesheets it references. Lazy chunks (Mermaid) are excluded.
+export async function editorInitialBytes(editorDirectory) {
+  const index = path.join(editorDirectory, 'index.html')
+  const html = await readFile(index, 'utf8')
+  const referenced = new Set(
+    [...html.matchAll(/(?:src|href)="\.\/([^"]+)"/g)].map((match) => match[1]),
+  )
+  let total = (await lstat(index)).size
+  for (const file of referenced) total += (await lstat(path.join(editorDirectory, file))).size
+  return total
+}
+
 export function evaluateBudgets(metrics, limits) {
   const checks = {}
   let passed = true
@@ -237,7 +250,7 @@ async function createManifest(options) {
   const bundle = path.resolve(options.bundle)
   const archive = path.resolve(options.archive)
   const executable = path.join(bundle, 'Contents', 'MacOS', 'MyEditor')
-  const editorHTML = path.join(bundle, 'Contents', 'Resources', 'EditorWeb', 'index.html')
+  const editorDirectory = path.join(bundle, 'Contents', 'Resources', 'EditorWeb')
   const infoPlist = path.join(bundle, 'Contents', 'Info.plist')
 
   const [
@@ -271,7 +284,8 @@ async function createManifest(options) {
     appLogicalBytes: await logicalFileBytes(bundle),
     archiveBytes: (await lstat(archive)).size,
     dmgBytes: (await lstat(path.resolve(options.dmg))).size,
-    editorHTMLBytes: (await lstat(editorHTML)).size,
+    editorInitialBytes: await editorInitialBytes(editorDirectory),
+    editorWebBytes: await logicalFileBytes(editorDirectory),
     executableBytes: (await lstat(executable)).size,
     linkeditBytes: parseLinkeditBytes(sizeOutput),
     nonExternalSymbols: symbols.nonExternal,
