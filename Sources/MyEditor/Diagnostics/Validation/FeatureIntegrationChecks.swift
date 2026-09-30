@@ -81,14 +81,20 @@
                 application.requestClose(session)
                 try await wait("Fixture closes") { session.isClosed }
             }
+            // "perf" only runs when named: it records timings rather than gating regressions.
             for group in [
                 "new-document", "typography", "search-clear", "search", "mermaid", "large", "fonts",
-                "empty", "recovery",
+                "empty", "recovery", "perf",
             ]
-            where phase == "all" || phase.split(separator: ",").contains(Substring(group)) {
+            where (phase == "all" && group != "perf")
+                || phase.split(separator: ",").contains(Substring(group))
+            {
                 completed = []
                 do {
-                    if group == "new-document" {
+                    if group == "perf" {
+                        completed = try await PerfIntegrationChecks.run(
+                            application: application, directory: directory)
+                    } else if group == "new-document" {
                         completed = try await DocumentCreationIntegrationChecks.run(
                             application: application, directory: directory)
                     } else if group == "typography" {
