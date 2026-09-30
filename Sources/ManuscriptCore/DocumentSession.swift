@@ -11,11 +11,22 @@ public final class DocumentSession: Identifiable {
     public let id = UUID()
     public private(set) var url: URL?
     public private(set) var untitledName = "未命名"
-    public private(set) var savedSnapshot: FileSnapshot
-    public private(set) var draftSource: String?
+    public private(set) var savedSnapshot: FileSnapshot {
+        didSet {
+            savedEditorSource = ManuscriptCodec.editorSource(savedSnapshot.source)
+            savedFormat = ManuscriptCodec.SourceFormat(savedSnapshot.source)
+        }
+    }
+    /// The full draft changes with every edit; views observe only `hasDraft`.
+    @ObservationIgnored public private(set) var draftSource: String? {
+        didSet { if hasDraft != (draftSource != nil) { hasDraft = draftSource != nil } }
+    }
+    public private(set) var hasDraft = false
     public private(set) var outline: [DocumentHeading] = []
-    public private(set) var generation: UInt64 = 0
-    public private(set) var savedGeneration: UInt64 = 0
+    @ObservationIgnored public private(set) var generation: UInt64 = 0
+    /// Editor form (no BOM, LF) of the saved file, compared on every change.
+    @ObservationIgnored private var savedEditorSource: String
+    @ObservationIgnored private var savedFormat: ManuscriptCodec.SourceFormat
     /// Only external reloads replace the editor document; saving never does.
     public private(set) var documentRevision: UInt64 = 0
     public var showsSource = false
@@ -37,7 +48,6 @@ public final class DocumentSession: Identifiable {
     public private(set) var externalReloadCount = 0
     public private(set) var successfulSaveCount = 0
     public private(set) var activeHeadingID: String?
-    public private(set) var lastSavedAt: Date?
     private var editorHasChangedDocument = false
     private var editorCanUndo = false
     private var editorCanRedo = false
@@ -60,7 +70,10 @@ public final class DocumentSession: Identifiable {
         url: URL, snapshot: FileSnapshot, files: any DocumentFileAccess = DiskFileAccess(),
         watch: Bool = true, accessURL: URL? = nil
     ) throws {
-        self.confirmedEditorSource = ManuscriptCodec.editorSource(snapshot.source)
+        let editorSource = ManuscriptCodec.editorSource(snapshot.source)
+        self.confirmedEditorSource = editorSource
+        self.savedEditorSource = editorSource
+        self.savedFormat = ManuscriptCodec.SourceFormat(snapshot.source)
         self.url = url
         self.savedSnapshot = snapshot
         self.files = files
@@ -74,6 +87,8 @@ public final class DocumentSession: Identifiable {
         self.untitledName = untitledName
         self.url = nil
         self.savedSnapshot = FileSnapshot(source: "")
+        self.savedEditorSource = ""
+        self.savedFormat = ManuscriptCodec.SourceFormat("")
         self.confirmedEditorSource = ""
         self.files = files
         self.watchesFile = true
@@ -85,7 +100,7 @@ public final class DocumentSession: Identifiable {
     public var suggestedName: String {
         url?.deletingPathExtension().lastPathComponent ?? untitledName
     }
-    public var source: String { draftSource ?? ManuscriptCodec.editorSource(savedSnapshot.source) }
+    public var source: String { draftSource ?? savedEditorSource }
     public var title: String {
         outline.first(where: { $0.level == 1 })?.title
             ?? suggestedName
@@ -98,7 +113,7 @@ public final class DocumentSession: Identifiable {
             (outline.firstIndex { $0.id == item.id } ?? 0) <= index
         }?.id ?? primaryHeadings.first?.id
     }
-    public var hasUnsavedChanges: Bool { draftSource != nil || editorHasPendingChanges }
+    public var hasUnsavedChanges: Bool { hasDraft || editorHasPendingChanges }
     public var canUndo: Bool {
         editorHasChangedDocument && editorCanUndo && !isClosed && !isClosing && !isComposing
             && editorReady
@@ -138,8 +153,7 @@ public final class DocumentSession: Identifiable {
     public func prepareEditorRecovery() {
         guard editorRecoveryRequired, let recoverySource else { return }
         draftSource =
-            recoverySource == ManuscriptCodec.editorSource(savedSnapshot.source)
-            ? nil : recoverySource
+            ManuscriptCodec.sameText(recoverySource, savedEditorSource) ? nil : recoverySource
         confirmedEditorSource = recoverySource
         self.recoverySource = nil
         editorRecoveryRequired = false
@@ -158,7 +172,7 @@ public final class DocumentSession: Identifiable {
         else { throw ManuscriptError.invalidName }
         return try await files.writeCopy(
             destination,
-            source: ManuscriptCodec.encodedSource(recoverySource, matching: savedSnapshot.source))
+            source: ManuscriptCodec.encodedSource(recoverySource, format: savedFormat))
     }
 
     public func setEditorReady(_ ready: Bool) { editorReady = ready }
@@ -167,10 +181,16 @@ public final class DocumentSession: Identifiable {
         guard !editorRecoveryRequired else { return }
         issue = ManuscriptError.editorUnavailable.localizedDescription
     }
-    public func notePendingEditorChanges() { if !isClosed { editorHasPendingChanges = true } }
+    public func notePendingEditorChanges() {
+        if !isClosed { setPendingEditorChanges(true) }
+    }
     public func updateHistory(canUndo: Bool, canRedo: Bool) {
-        editorCanUndo = canUndo
-        editorCanRedo = canRedo
+        // Assigning an unchanged value still invalidates observers (the menus).
+        if editorCanUndo != canUndo { editorCanUndo = canUndo }
+        if editorCanRedo != canRedo { editorCanRedo = canRedo }
+    }
+    private func setPendingEditorChanges(_ pending: Bool) {
+        if editorHasPendingChanges != pending { editorHasPendingChanges = pending }
     }
     public func updateOutline(_ headings: [DocumentHeading], revision: UInt64) {
         guard revision == documentRevision, !isClosed else { return }
@@ -200,33 +220,34 @@ public final class DocumentSession: Identifiable {
     public func setClosing(_ closing: Bool) { if !isClosed { isClosing = closing } }
 
     /// Revision and sequence reject delayed messages from an earlier editor load.
-    public func receiveEditorSource(_ text: String, sequence: UInt64, revision: UInt64) {
+    public func receiveEditorSource(_ incoming: String, sequence: UInt64, revision: UInt64) {
         guard !isClosed, !editorRecoveryRequired, revision == documentRevision,
             sequence >= lastEditorSequence
         else {
             return
         }
         if sequence == lastEditorSequence {
-            editorHasPendingChanges = false
+            setPendingEditorChanges(false)
             return
         }
+        // WebKit hands over a bridged string; compare and store native UTF-8.
+        var text = incoming
+        text.makeContiguousUTF8()
         if !isComposing { confirmedEditorSource = text }
         lastEditorSequence = sequence
-        editorHasPendingChanges = false
-        guard source != text else { return }
-        editorHasChangedDocument = true
+        setPendingEditorChanges(false)
+        guard !ManuscriptCodec.sameText(source, text) else { return }
+        if !editorHasChangedDocument { editorHasChangedDocument = true }
         generation += 1
-        draftSource =
-            !isSaving && text == ManuscriptCodec.editorSource(savedSnapshot.source) ? nil : text
-        if draftSource == nil { savedGeneration = generation }
-        if !fileUnavailable && !hasConflict { issue = nil }
+        draftSource = !isSaving && ManuscriptCodec.sameText(text, savedEditorSource) ? nil : text
+        if !fileUnavailable && !hasConflict && issue != nil { issue = nil }
         scheduleAutoSave()
     }
     public func confirmEditorSequence(_ sequence: UInt64, revision: UInt64) {
         guard !isClosed, !editorRecoveryRequired, !isComposing,
             revision == documentRevision, sequence == lastEditorSequence
         else { return }
-        editorHasPendingChanges = false
+        setPendingEditorChanges(false)
     }
 
     public func setComposing(_ composing: Bool) {
@@ -257,7 +278,7 @@ public final class DocumentSession: Identifiable {
     public func serializedSource() -> String {
         if isUntitled { return source }
         guard let draftSource else { return savedSnapshot.source }
-        return ManuscriptCodec.encodedSource(draftSource, matching: savedSnapshot.source)
+        return ManuscriptCodec.encodedSource(draftSource, format: savedFormat)
     }
 
     @discardableResult public func save(_ reason: SaveReason) async -> Bool {
@@ -371,19 +392,16 @@ public final class DocumentSession: Identifiable {
                 }
                 let capturedGeneration = generation
                 let candidate = serializedSource()
-                if candidate == savedSnapshot.source {
+                if ManuscriptCodec.sameText(candidate, savedSnapshot.source) {
                     draftSource = nil
-                    savedGeneration = capturedGeneration
                     issue = nil
                     continue
                 }
                 let snapshot = try await files.write(
                     url, source: candidate, expectedRevision: savedSnapshot.revision)
                 savedSnapshot = snapshot
-                savedGeneration = capturedGeneration
                 if generation == capturedGeneration { draftSource = nil }
                 successfulSaveCount += 1
-                lastSavedAt = Date()
                 issue = nil
             }
             return !editorHasPendingChanges
@@ -426,6 +444,11 @@ public final class DocumentSession: Identifiable {
         do {
             let first = try await files.read(url)
             if first.revision == baseline || (hasConflict && conflictRevision == first.revision) {
+                // The same bytes came back (e.g. a branch switch or sync client).
+                if first.revision == baseline, fileUnavailable, !isClosed {
+                    fileUnavailable = false
+                    if !hasConflict { issue = nil }
+                }
                 return
             }
             try await Task.sleep(for: .milliseconds(100))
@@ -476,11 +499,10 @@ public final class DocumentSession: Identifiable {
     private func acceptExternal(_ snapshot: FileSnapshot) {
         autoSaveTask?.cancel()
         savedSnapshot = snapshot
-        confirmedEditorSource = ManuscriptCodec.editorSource(snapshot.source)
+        confirmedEditorSource = savedEditorSource
         draftSource = nil
         editorHasPendingChanges = false
         generation += 1
-        savedGeneration = generation
         documentRevision += 1
         lastEditorSequence = 0
         editorHasChangedDocument = false
@@ -526,10 +548,8 @@ public final class DocumentSession: Identifiable {
                 adoptedAccess = true
             }
             savedSnapshot = snapshot
-            savedGeneration = capturedGeneration
             if generation == capturedGeneration { draftSource = nil }
             successfulSaveCount += 1
-            lastSavedAt = Date()
             issue = nil
             restartWatcher()
         } catch {

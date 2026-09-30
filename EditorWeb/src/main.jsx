@@ -21,6 +21,7 @@ import {
   $getRoot,
   $createParagraphNode,
   $createTextNode,
+  $isTextNode,
 } from 'lexical'
 import '@mdxeditor/editor/style.css'
 import { extractOutline, imagePreviewURL } from './markdown/markdown.js'
@@ -44,6 +45,15 @@ import {
   inspectSearch,
 } from './search/search.js'
 import { applyEditorFonts } from './styles/fontStyles.js'
+import {
+  abandonImport,
+  importDocument,
+  beginTracking,
+  exportDocument,
+  scheduleExport,
+  stopTracking,
+  inspectSync,
+} from './editor/documentSync.js'
 import './styles/styles.css'
 
 const plugins = [
@@ -86,56 +96,85 @@ function finishCompositionWaits() {
   compositionWaiters.clear()
 }
 
+function applyOutline(headings, force = false) {
+  if (force || JSON.stringify(headings) !== JSON.stringify(runtime.outline)) {
+    runtime.outline = headings
+    post('outline', { headings })
+  }
+  requestAnimationFrame(refreshHeadingElements)
+}
+
+// Whole-document outline, used only by the fallback source view.
 let outlineTimer, outlineDeadline
-let lastOutlineSource = null
-let lastPublishedSequence = -1
 function cancelOutline() {
   clearTimeout(outlineTimer)
   clearTimeout(outlineDeadline)
   outlineDeadline = undefined
 }
-function updateOutline(force = false) {
+function updateFallbackOutline() {
   cancelOutline()
-  if (!force && lastOutlineSource === runtime.source) return
   try {
-    const headings = extractOutline(runtime.source, runtime.outline)
-    lastOutlineSource = runtime.source
-    if (force || JSON.stringify(headings) !== JSON.stringify(runtime.outline)) {
-      runtime.outline = headings
-      post('outline', { headings })
-    }
-    requestAnimationFrame(refreshHeadingElements)
+    applyOutline(extractOutline(runtime.source, runtime.outline))
   } catch {
     // Keep navigation until the incomplete construct becomes parseable.
   }
 }
-function scheduleOutline() {
+function scheduleFallbackOutline() {
   clearTimeout(outlineTimer)
-  outlineTimer = setTimeout(updateOutline, 160)
-  outlineDeadline ??= setTimeout(updateOutline, 1000)
+  outlineTimer = setTimeout(updateFallbackOutline, 160)
+  outlineDeadline ??= setTimeout(updateFallbackOutline, 1000)
 }
-function publishSource() {
-  if (lastPublishedSequence === runtime.sequence) {
-    // A no-op input still needs to settle the native pending marker, without
-    // sending another full document across the bridge.
-    if (!runtime.composing) post('settled', { sequence: runtime.sequence })
-    return
+
+// Native learns about input immediately, but receives the Markdown only when
+// the editor is idle, on flush, or at most once per second while typing.
+let pendingPosted = false
+function markPending() {
+  if (pendingPosted || !runtime.loaded) return
+  pendingPosted = true
+  post('pending')
+}
+function publish(changed) {
+  pendingPosted = false
+  if (changed)
+    post('change', { source: runtime.source, sequence: runtime.sequence, composing: false })
+  else post('settled', { sequence: runtime.sequence })
+}
+let syncTiming = null
+function syncDocument({ notify = true } = {}) {
+  if (!runtime.loaded || runtime.fallback || runtime.composing) return
+  const started = performance.now()
+  const { text, outline } = exportDocument(runtime.outline)
+  const exported = performance.now()
+  applyOutline(outline)
+  const changed = text !== runtime.source
+  if (changed) {
+    runtime.source = text
+    runtime.sequence++
+    if (runtime.showsSource) runtime.updateSourcePreview?.(text)
+    refreshSearch()
   }
-  lastPublishedSequence = runtime.sequence
-  post('change', {
-    source: runtime.source,
-    sequence: runtime.sequence,
-    composing: runtime.composing,
-  })
+  const applied = performance.now()
+  if (notify) publish(changed)
+  else pendingPosted = false
+  syncTiming = {
+    export: +(exported - started).toFixed(1),
+    apply: +(applied - exported).toFixed(1),
+    post: +(performance.now() - applied).toFixed(1),
+  }
 }
-function changed(source, initial = false) {
-  if (!runtime.loaded || runtime.programmatic || initial) return
-  if (source === runtime.source) return
+runtime.onDocumentDirty = () => {
+  if (!runtime.loaded || runtime.programmatic || runtime.fallback) return
+  markPending()
+  refreshSearch()
+  scheduleExport(() => syncDocument())
+}
+// Fallback source view edits replace the whole text.
+function changed(source) {
+  if (!runtime.loaded || runtime.programmatic || source === runtime.source) return
   runtime.source = source
-  runtime.updateSourcePreview?.(source)
   runtime.sequence++
-  publishSource()
-  scheduleOutline()
+  publish(true)
+  scheduleFallbackOutline()
   refreshSearch()
 }
 
@@ -188,15 +227,39 @@ function App() {
     mountCount++
     runtime.applyFallback = fallbackEdit
     runtime.updateSourcePreview = setSourcePreview
+    async function applyHistory(command) {
+      if (runtime.fallback) {
+        const history = fallbackHistory.current
+        const [from, to] =
+          command === 'undo' ? [history.undo, history.redo] : [history.redo, history.undo]
+        if (from.length) {
+          to.push(runtime.source)
+          fallbackEdit(from.pop(), false)
+        }
+      } else
+        (runtime.historyTarget || runtime.activeEditor || runtime.editor)?.dispatchCommand(
+          command === 'undo' ? UNDO_COMMAND : REDO_COMMAND,
+          undefined,
+        )
+      await nextFrame()
+      if (runtime.fallback) publish(false)
+      else syncDocument()
+      refreshSearch()
+      if (runtime.historyTarget === runtime.editor) {
+        runtime.canUndo = runtime.history.undoStack.length > 0
+        runtime.canRedo = runtime.history.redoStack.length > 0
+        postHistory()
+      }
+    }
     window.MyEditor = {
       async load(options) {
-        const token = (runtime.loadToken = (runtime.loadToken || 0) + 1)
+        const token = ++runtime.loadToken
         finishCompositionWaits()
         cancelWheel()
         resetSearch()
         cancelOutline()
-        lastOutlineSource = null
-        lastPublishedSequence = -1
+        stopTracking()
+        pendingPosted = false
         runtime.outline = []
         const previousY = window.scrollY
         runtime.programmatic = true
@@ -205,7 +268,6 @@ function App() {
         runtime.revision = options.revision
         runtime.validation = !!options.validation
         runtime.sequence = 0
-        runtime.original = options.source
         runtime.source = options.source
         runtime.composing = false
         runtime.fallback = false
@@ -216,7 +278,8 @@ function App() {
         fallbackHistory.current = { undo: [], redo: [], lastChange: 0 }
         setFallback(null)
         setFallbackText(options.source)
-        editorRef.current?.setMarkdown(options.source)
+        await importDocument(options.source, (source) => editorRef.current?.setMarkdown(source))
+        if (token !== runtime.loadToken) return
         await nextFrame()
         if (token !== runtime.loadToken) return
         runtime.editor?.dispatchCommand(CLEAR_HISTORY_COMMAND, undefined)
@@ -228,8 +291,14 @@ function App() {
         }
         runtime.programmatic = false
         runtime.loaded = true
+        if (runtime.fallback) {
+          try {
+            applyOutline(extractOutline(options.source), true)
+          } catch {
+            applyOutline([], true)
+          }
+        } else applyOutline(beginTracking(options.source, []), true)
         this.configure(options)
-        updateOutline(true)
         postHistory()
         post('loaded')
         if (options.preserveScroll) requestAnimationFrame(() => window.scrollTo(0, previousY))
@@ -257,6 +326,8 @@ function App() {
         const restorePosition = layoutChanged ? captureReadingPosition() : () => {}
         appliedLayoutKey = layoutKey
         const wasReadOnly = runtime.readOnly
+        // The source preview shows exported Markdown; export pending edits first.
+        if (options.showsSource && !runtime.showsSource) syncDocument()
         runtime.showsSource = !!options.showsSource
         setShowsSource(runtime.showsSource)
         setSourcePreview(runtime.source)
@@ -309,7 +380,9 @@ function App() {
         }
         setImageResourceBase(options.resourceBase || '')
       },
-      async flush(commitComposition = false) {
+      // Native reads the source from the reply; calls made inside the page
+      // (search and replace) also notify native of the exported change.
+      async flush(commitComposition = false, notify = false) {
         const revision = runtime.revision
         if (commitComposition && runtime.composing) {
           document.activeElement?.blur()
@@ -329,6 +402,7 @@ function App() {
         await Promise.resolve()
         if (!runtime.loaded || runtime.composing || revision !== runtime.revision)
           return { ok: false }
+        syncDocument({ notify })
         return {
           ok: true,
           source: runtime.source,
@@ -337,47 +411,11 @@ function App() {
           sessionID: runtime.sessionID,
         }
       },
-      async undo() {
-        if (runtime.fallback) {
-          const history = fallbackHistory.current
-          if (history.undo.length) {
-            history.redo.push(runtime.source)
-            fallbackEdit(history.undo.pop(), false)
-          }
-        } else
-          (runtime.historyTarget || runtime.activeEditor || runtime.editor)?.dispatchCommand(
-            UNDO_COMMAND,
-            undefined,
-          )
-        await nextFrame()
-        publishSource()
-        refreshSearch()
-        if (runtime.historyTarget === runtime.editor) {
-          runtime.canUndo = runtime.history.undoStack.length > 0
-          runtime.canRedo = runtime.history.redoStack.length > 0
-          postHistory()
-        }
+      undo() {
+        return applyHistory('undo')
       },
-      async redo() {
-        if (runtime.fallback) {
-          const history = fallbackHistory.current
-          if (history.redo.length) {
-            history.undo.push(runtime.source)
-            fallbackEdit(history.redo.pop(), false)
-          }
-        } else
-          (runtime.historyTarget || runtime.activeEditor || runtime.editor)?.dispatchCommand(
-            REDO_COMMAND,
-            undefined,
-          )
-        await nextFrame()
-        publishSource()
-        refreshSearch()
-        if (runtime.historyTarget === runtime.editor) {
-          runtime.canUndo = runtime.history.undoStack.length > 0
-          runtime.canRedo = runtime.history.redoStack.length > 0
-          postHistory()
-        }
+      redo() {
+        return applyHistory('redo')
       },
       navigate,
       addWheelDelta,
@@ -399,6 +437,7 @@ function App() {
           canRedo: runtime.canRedo,
           mountCount,
           search: inspectSearch(),
+          sync: { ...inspectSync(), lastSync: syncTiming },
           headingCount: document.querySelectorAll(
             '.document-content h1,.document-content h2,.document-content h3,.document-content h4,.document-content h5,.document-content h6',
           ).length,
@@ -412,6 +451,24 @@ function App() {
           },
           { discrete: true },
         )
+        syncDocument()
+        await nextFrame()
+        return this.inspect()
+      },
+      // Appends text to the last text of top-level block `index` as one edit.
+      async validationEditBlock(index, text) {
+        if (!runtime.validation) throw new Error('Validation is not enabled')
+        runtime.historyTarget = runtime.editor
+        runtime.editor.update(
+          () => {
+            const block = $getRoot().getChildAtIndex(index)
+            const last = block?.getLastDescendant?.()
+            if ($isTextNode(last)) last.setTextContent(last.getTextContent() + text)
+            else block?.append?.($createTextNode(text))
+          },
+          { discrete: true },
+        )
+        syncDocument()
         await nextFrame()
         return this.inspect()
       },
@@ -433,8 +490,13 @@ function App() {
           const inSource = !!event.target.closest?.('[data-source-key]')
           runtime.historyTarget = inSource ? runtime.editor : runtime.activeEditor
           runtime.cellDirty = !inSource && !!event.target.closest?.('td,th')
-          post('pending')
-          requestAnimationFrame(publishSource)
+          markPending()
+          // Settles the native pending marker even when the input changes nothing.
+          if (runtime.fallback)
+            requestAnimationFrame(() => {
+              if (pendingPosted) publish(false)
+            })
+          else scheduleExport(() => syncDocument())
         }
       }}
       onCompositionStartCapture={() => {
@@ -444,9 +506,10 @@ function App() {
       onCompositionEndCapture={() => {
         runtime.composing = false
         queueMicrotask(() => {
-          publishSource()
+          if (runtime.fallback) {
+            if (pendingPosted) publish(false)
+          } else syncDocument()
           post('composition', { composing: false })
-          scheduleOutline()
           finishCompositionWaits()
         })
       }}
@@ -473,9 +536,9 @@ function App() {
           plugins={pluginsWithImages}
           suppressHtmlProcessing={true}
           toMarkdownOptions={markdownOutput}
-          onChange={changed}
           placeholder={readOnly ? '' : '开始写作…'}
           onError={({ source, error }) => {
+            abandonImport()
             runtime.fallback = true
             setFallback(error)
             setFallbackText(source || runtime.source)

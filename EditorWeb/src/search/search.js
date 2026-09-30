@@ -289,7 +289,7 @@ export async function search(options) {
   state.requestID = options.requestID
   const requestID = state.requestID
   if (queryChanged) state.current = 0
-  if (state.query && !(await window.MyEditor.flush(false)).ok) return
+  if (state.query && !(await window.MyEditor.flush(false, true)).ok) return
   if (!valid(options) || state.requestID !== requestID || state.query !== options.query) return
   rebuild(!queryChanged)
   if (options.direction && state.matches.length) {
@@ -323,7 +323,7 @@ export async function replace(options) {
   if (runtime.showsSource) return { ok: false }
   if (!valid(options) || options.requestID !== state.requestID || options.query !== state.query)
     return { ok: false }
-  const flushed = await window.MyEditor.flush(false)
+  const flushed = await window.MyEditor.flush(false, true)
   if (
     !flushed.ok ||
     !valid(options) ||
@@ -381,7 +381,7 @@ export async function replace(options) {
     postHistory()
   }
   await Promise.resolve()
-  await window.MyEditor.flush(false)
+  await window.MyEditor.flush(false, true)
   rebuild()
   if (!options.all && active) {
     const next = state.matches.findIndex(

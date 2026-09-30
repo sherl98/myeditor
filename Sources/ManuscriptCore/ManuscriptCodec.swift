@@ -41,20 +41,54 @@ public enum ManuscriptCodec {
         SHA256.hash(data: Data(source.utf8)).map { String(format: "%02x", $0) }.joined()
     }
     public static func sourceFromUTF8(_ data: Data) throws -> String {
-        guard String(data: data, encoding: .utf8) != nil else { throw ManuscriptError.invalidUTF8 }
-        return String(decoding: data, as: UTF8.self)
+        guard let source = String(validating: data, as: UTF8.self) else {
+            throw ManuscriptError.invalidUTF8
+        }
+        return source
     }
+
+    /// File conventions the editor text does not carry. Scans UTF-8 bytes once;
+    /// saving must not search a long document on the main thread.
+    public struct SourceFormat: Equatable, Sendable {
+        public let byteOrderMark: Bool
+        public let crlf: Bool
+        public let trailingNewline: Bool
+        public init(_ source: String) {
+            byteOrderMark = source.utf8.starts(with: [0xEF, 0xBB, 0xBF])
+            var previous: UInt8 = 0
+            var crlf = false
+            for byte in source.utf8 {
+                if byte == 0x0A, previous == 0x0D {
+                    crlf = true
+                    break
+                }
+                previous = byte
+            }
+            self.crlf = crlf
+            trailingNewline = source.utf8.last == 0x0A
+        }
+    }
+
     public static func editorSource(_ source: String) -> String {
         let text = source.hasPrefix("\u{FEFF}") ? String(source.dropFirst()) : source
-        return text.replacingOccurrences(of: "\r\n", with: "\n")
+        return text.utf8.contains(0x0D) ? text.replacingOccurrences(of: "\r\n", with: "\n") : text
+    }
+    /// The editor preserves the original trailing newlines of unedited text. A
+    /// file that ended with a newline keeps at least one.
+    public static func encodedSource(_ text: String, format: SourceFormat) -> String {
+        var result =
+            text.utf8.contains(0x0D) ? text.replacingOccurrences(of: "\r\n", with: "\n") : text
+        if format.trailingNewline, !result.isEmpty, result.utf8.last != 0x0A { result += "\n" }
+        if format.crlf { result = result.replacingOccurrences(of: "\n", with: "\r\n") }
+        return format.byteOrderMark ? "\u{FEFF}" + result : result
     }
     public static func encodedSource(_ text: String, matching original: String) -> String {
-        let lineEnding = original.contains("\r\n") ? "\r\n" : "\n"
-        var result = text.replacingOccurrences(of: "\r\n", with: "\n")
-        while result.hasSuffix("\n") { result.removeLast() }
-        if original.utf8.last == 0x0A, !result.isEmpty { result += "\n" }
-        result = result.replacingOccurrences(of: "\n", with: lineEnding)
-        return (original.hasPrefix("\u{FEFF}") ? "\u{FEFF}" : "") + result
+        encodedSource(text, format: SourceFormat(original))
+    }
+    /// Byte equality. Files differ when their bytes differ, even if Swift would
+    /// consider the strings canonically equivalent; it is also much faster.
+    public static func sameText(_ a: String, _ b: String) -> Bool {
+        a.utf8.count == b.utf8.count && a.utf8.elementsEqual(b.utf8)
     }
     public static func primaryHeadings(_ headings: [DocumentHeading]) -> [DocumentHeading] {
         guard let first = headings.first else { return [] }

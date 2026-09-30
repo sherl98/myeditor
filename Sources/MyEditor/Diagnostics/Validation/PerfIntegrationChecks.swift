@@ -64,6 +64,10 @@
                 let webView = bridge.webView,
                 let window = application.validationWindow(for: session)
             else { throw FeatureIntegrationChecks.Failure(message: "\(name) bridge exists") }
+            try await Task.sleep(for: .milliseconds(800))
+            var memory: [String: Any] = [
+                "loadedWebContentMB": webProcessIdentifier(webView).map { footprintMB($0) } ?? -1
+            ]
             application.toggleEditing(session)
             try await wait("\(name) enters editing") { session.isEditing }
             var editable = false
@@ -77,6 +81,8 @@
             guard editable else {
                 throw FeatureIntegrationChecks.Failure(message: "\(name) becomes editable")
             }
+            // Let the load's garbage be collected so typing is measured on its own.
+            memory["editingWebContentMB"] = try await settledFootprint(webView)
             let placed =
                 try await bridge.evaluateForValidation(
                     """
@@ -150,10 +156,24 @@
             let costs = (collected["costs"] as? [Double] ?? []).sorted()
             let frames = collected["frames"] as? [Double] ?? []
             let gaps = zip(frames.dropFirst(), frames).map { $0 - $1 }
-            let memory: [String: Any] = [
-                "nativeMB": footprintMB(getpid()),
-                "webContentMB": webProcessIdentifier(webView).map { footprintMB($0) } ?? -1,
-            ]
+            memory["nativeMB"] = footprintMB(getpid())
+            memory["webContentMB"] = webProcessIdentifier(webView).map { footprintMB($0) } ?? -1
+            // Main-thread cost of receiving and saving a whole document.
+            var native: [String: Double] = [:]
+            let edited = session.source + "尾"
+            var started = clock.now
+            session.receiveEditorSource(
+                edited, sequence: 1_000_000, revision: session.documentRevision)
+            native["receiveMs"] = milliseconds(clock.now - started)
+            started = clock.now
+            _ = session.serializedSource()
+            native["serializeMs"] = milliseconds(clock.now - started)
+            started = clock.now
+            await session.save(.explicit)
+            native["saveMs"] = milliseconds(clock.now - started)
+            let sync =
+                try await bridge.evaluateForValidation(
+                    "return window.MyEditor.inspect().sync") as? [String: Any] ?? [:]
             await application.save(session, reason: .explicit)
             application.requestClose(session)
             try await wait("\(name) closes") { session.isClosed }
@@ -175,6 +195,8 @@
                 "inserted": inserted,
                 "typedCharacters": typed,
                 "memory": memory,
+                "native": native,
+                "sync": sync,
             ]
         }
 
@@ -210,6 +232,18 @@
                 "tabs": sessions.count, "nativeMB": native, "webContentMB": web,
                 "totalMB": native + web.reduce(0, +),
             ]
+        }
+
+        private static func settledFootprint(_ webView: WKWebView) async throws -> Double {
+            guard let pid = webProcessIdentifier(webView) else { return -1 }
+            var previous = footprintMB(pid)
+            for _ in 0..<30 {
+                try await Task.sleep(for: .milliseconds(400))
+                let current = footprintMB(pid)
+                if abs(current - previous) <= max(4, previous * 0.02) { return current }
+                previous = current
+            }
+            return previous
         }
 
         private static func wait(_ message: String, until condition: () -> Bool) async throws {

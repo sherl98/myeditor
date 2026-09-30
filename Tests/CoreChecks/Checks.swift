@@ -185,7 +185,7 @@ struct CheckFailure: Error, CustomStringConvertible { let description: String }
 
     func watcherAndResources() async throws {
         var current: DocumentSession? = try await session("watcher", watch: true)
-        weak var released = current
+        weak let released = current
         let url = current!.url!
         try "外部原子替换。\n".write(to: url, atomically: true, encoding: .utf8)
         try await waitUntil("Watcher follows external atomic replacement") {
@@ -274,6 +274,8 @@ struct CheckFailure: Error, CustomStringConvertible { let description: String }
             try await checks.bridgeSynchronization()
             try await checks.renaming()
             try await checks.editorRecovery()
+            try await checks.fileFidelity()
+            try await checks.missingFileRecovery()
             print("PASS: \(checks.count) document checks. All writes used disposable fixtures.")
         } catch {
             print("FAIL: \(error)")

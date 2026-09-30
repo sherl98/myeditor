@@ -124,6 +124,13 @@ public actor DiskFileAccess: DocumentFileAccess {
         return try result.get()
     }
 
+    /// New files get the permissions other apps would create: 0666 minus umask.
+    private static let newFilePermissions: UInt16 = {
+        let mask = umask(0)
+        umask(mask)
+        return 0o666 & ~UInt16(mask)
+    }()
+
     private static func replaceFile(
         _ target: URL, source: String, expectedRevision: String?, allowCreation: Bool
     ) throws -> FileSnapshot {
@@ -146,12 +153,12 @@ public actor DiskFileAccess: DocumentFileAccess {
         if expectedRevision == nil && existed { throw ManuscriptError.sourceChanged }
 
         let temporary = target.deletingLastPathComponent().appendingPathComponent(
-            ".\(target.lastPathComponent).novelreader-\(UUID().uuidString).tmp")
+            ".\(target.lastPathComponent).myeditor-\(UUID().uuidString).tmp")
         defer { try? fm.removeItem(at: temporary) }
         guard
             fm.createFile(
                 atPath: temporary.path, contents: nil,
-                attributes: [.posixPermissions: permissions ?? 0o600])
+                attributes: [.posixPermissions: permissions ?? newFilePermissions])
         else {
             throw CocoaError(.fileWriteUnknown)
         }
@@ -178,7 +185,9 @@ public actor DiskFileAccess: DocumentFileAccess {
             try fm.moveItem(at: temporary, to: target)
         }
         let committed = try readFile(target)
-        guard committed.source == source else { throw ManuscriptError.sourceChanged }
+        guard ManuscriptCodec.sameText(committed.source, source) else {
+            throw ManuscriptError.sourceChanged
+        }
         return committed
     }
 }

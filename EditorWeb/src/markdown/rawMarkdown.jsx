@@ -16,6 +16,7 @@ import { gfmToMarkdown } from 'mdast-util-gfm'
 import { frontmatterToMarkdown } from 'mdast-util-frontmatter'
 import { markdownOptions, needsRawParagraph, hasMixedTaskItems } from './markdown.js'
 import { SourceEditor } from '../editor/SourceEditor.jsx'
+import { blockCaptureExtension, blockImportVisitor } from '../editor/documentSync.js'
 
 function RawBlock({ editor, nodeKey, value, inline }) {
   const readOnly = useCellValue(readOnly$)
@@ -94,9 +95,10 @@ export const rawMarkdownPlugin = realmPlugin({
   init(realm) {
     realm.pubIn({
       [addSyntaxExtension$]: markdownOptions.extensions,
-      [addMdastExtension$]: markdownOptions.mdastExtensions,
+      [addMdastExtension$]: [...markdownOptions.mdastExtensions, blockCaptureExtension],
       [addLexicalNode$]: RawMarkdownNode,
       [addImportVisitor$]: [
+        blockImportVisitor,
         {
           priority: 100,
           testNode: (node) =>
