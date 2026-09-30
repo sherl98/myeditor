@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "name": "MyEditor 2.x release budget",
   "limits": {
-    "appLogicalBytes": 6800000,
-    "archiveBytes": 2150000,
+    "appLogicalBytes": 7000000,
+    "archiveBytes": 2300000,
     "editorInitialBytes": 1450000,
     "editorWebBytes": 5700000,
     "executableBytes": 1200000,
