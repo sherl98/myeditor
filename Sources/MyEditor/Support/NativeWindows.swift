@@ -88,13 +88,21 @@ final class ReaderWindowController: NSWindowController, NSWindowDelegate, NSTool
         }
         titlePresentation.isShowingActions.toggle()
     }
+    /// Assign only what changed: resetting the title or represented URL makes
+    /// AppKit refresh the title bar and re-query the text input client.
     func updateDocumentMetadata() {
-        window?.title = session.displayName
-        window?.representedURL = session.url
-        window?.tab.title = session.displayName
-        window?.tab.attributedTitle = Self.tabTitle(session.displayName)
-        window?.tab.toolTip = session.url?.path ?? "尚未保存"
-        window?.isDocumentEdited = session.isUntitled || session.hasUnsavedChanges
+        guard let window else { return }
+        let name = session.displayName
+        if window.title != name {
+            window.title = name
+            window.tab.title = name
+            window.tab.attributedTitle = Self.tabTitle(name)
+        }
+        if window.representedURL != session.url { window.representedURL = session.url }
+        let toolTip = session.url?.path ?? "尚未保存"
+        if window.tab.toolTip != toolTip { window.tab.toolTip = toolTip }
+        let edited = session.isUntitled || session.hasUnsavedChanges
+        if window.isDocumentEdited != edited { window.isDocumentEdited = edited }
     }
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         if permitClose { return true }

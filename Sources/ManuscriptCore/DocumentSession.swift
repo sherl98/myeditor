@@ -37,8 +37,9 @@ public final class DocumentSession: Identifiable {
     public private(set) var isClosed = false
     public private(set) var isClosing = false
     public private(set) var editorRecoveryRequired = false
-    private var confirmedEditorSource: String
-    private var recoverySource: String?
+    // Whole-document copies; observing them would compare them on every set.
+    @ObservationIgnored private var confirmedEditorSource: String
+    @ObservationIgnored private var recoverySource: String?
     public private(set) var editorReady = false
     public private(set) var editorHasPendingChanges = false
     public private(set) var issue: String?

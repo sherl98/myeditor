@@ -83,6 +83,12 @@
             }
             // Let the load's garbage be collected so typing is measured on its own.
             memory["editingWebContentMB"] = try await settledFootprint(webView)
+            // Lets an external profiler attach to this document's web process.
+            if let pid = webProcessIdentifier(webView) {
+                try? "\(pid)".write(
+                    to: directory.appendingPathComponent("perf-\(name).pid"), atomically: true,
+                    encoding: .utf8)
+            }
             let placed =
                 try await bridge.evaluateForValidation(
                     """
@@ -97,11 +103,12 @@
                     const selection = getSelection();
                     selection.removeAllRanges();
                     selection.addRange(range);
-                    window.__perf = { costs: [], frames: [], running: true };
+                    window.__perf = { costs: [], frames: [], inputs: [], running: true };
                     if (!window.__perfInstalled) {
                       window.__perfInstalled = true;
                       document.addEventListener('beforeinput', () => {
                         const start = performance.now();
+                        window.__perf.inputs.push(+start.toFixed(1));
                         setTimeout(() => window.__perf.costs.push(performance.now() - start), 0);
                       }, true);
                     }
@@ -145,7 +152,7 @@
             try await Task.sleep(for: .milliseconds(1200))
             let collected =
                 try await bridge.evaluateForValidation(
-                    "window.__perf.running = false; return { costs: window.__perf.costs, frames: window.__perf.frames }"
+                    "window.__perf.running = false; return { costs: window.__perf.costs, frames: window.__perf.frames, inputs: window.__perf.inputs }"
                 ) as? [String: Any] ?? [:]
             let changeMessages = Int(session.generation - generation)
             let flushStarted = clock.now
@@ -156,6 +163,9 @@
             let costs = (collected["costs"] as? [Double] ?? []).sorted()
             let frames = collected["frames"] as? [Double] ?? []
             let gaps = zip(frames.dropFirst(), frames).map { $0 - $1 }
+            let longGaps = zip(frames.dropFirst(), frames).filter { $0 - $1 > 50 }.map {
+                ["start": $1, "gap": $0 - $1]
+            }
             memory["nativeMB"] = footprintMB(getpid())
             memory["webContentMB"] = webProcessIdentifier(webView).map { footprintMB($0) } ?? -1
             // Main-thread cost of receiving and saving a whole document.
@@ -188,6 +198,8 @@
                 ],
                 "longFramesOver50ms": gaps.filter { $0 > 50 }.count,
                 "maxFrameGapMs": gaps.max() ?? 0,
+                "longGaps": longGaps,
+                "inputTimes": collected["inputs"] as? [Double] ?? [],
                 "changeMessages": changeMessages,
                 "flushMilliseconds": flushMilliseconds,
                 "backlogAfterLastKeyMs": backlogMilliseconds,

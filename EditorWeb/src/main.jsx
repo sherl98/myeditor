@@ -140,6 +140,8 @@ function publish(changed) {
   else post('settled', { sequence: runtime.sequence })
 }
 let syncTiming = null
+// Validation builds keep every export's timing for the performance checks.
+const syncLog = []
 function syncDocument({ notify = true } = {}) {
   if (!runtime.loaded || runtime.fallback || runtime.composing) return
   const started = performance.now()
@@ -157,9 +159,18 @@ function syncDocument({ notify = true } = {}) {
   if (notify) publish(changed)
   else pendingPosted = false
   syncTiming = {
+    at: +started.toFixed(1),
+    changed,
     export: +(exported - started).toFixed(1),
     apply: +(applied - exported).toFixed(1),
     post: +(performance.now() - applied).toFixed(1),
+  }
+  if (runtime.validation) {
+    syncLog.push(syncTiming)
+    // How long until the page can paint again after this export.
+    const entry = syncTiming
+    requestAnimationFrame(() => (entry.nextFrame = +(performance.now() - started).toFixed(1)))
+    setTimeout(() => (entry.nextTask = +(performance.now() - started).toFixed(1)), 0)
   }
 }
 runtime.onDocumentDirty = () => {
@@ -437,7 +448,11 @@ function App() {
           canRedo: runtime.canRedo,
           mountCount,
           search: inspectSearch(),
-          sync: { ...inspectSync(), lastSync: syncTiming },
+          sync: {
+            ...inspectSync(),
+            lastSync: syncTiming,
+            log: syncLog.slice(-20),
+          },
           headingCount: document.querySelectorAll(
             '.document-content h1,.document-content h2,.document-content h3,.document-content h4,.document-content h5,.document-content h6',
           ).length,
