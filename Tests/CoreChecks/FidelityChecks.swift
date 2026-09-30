@@ -67,22 +67,23 @@ extension Checks {
     }
 
     func legacyPreferences() throws {
-        let name = "MyEditorChecks-\(UUID().uuidString)"
-        guard let defaults = UserDefaults(suiteName: name) else {
-            throw CheckFailure(description: "Test defaults suite")
+        final class MemoryStore: PreferenceStore {
+            var values: [String: Any] = [:]
+            func object(forKey defaultName: String) -> Any? { values[defaultName] }
+            func set(_ value: Any?, forKey defaultName: String) { values[defaultName] = value }
         }
-        defer { defaults.removePersistentDomain(forName: name) }
+        let defaults = MemoryStore()
         defaults.set(120, forKey: "reader.fontPercent")
         let legacy: [String: Any] = [
             "reader.fontPercent": 90, "reader.appearance": "dark", "NSWindow Frame": "x",
         ]
         let copied = LegacyPreferences.migrate(from: legacy, into: defaults)
         try expect(
-            copied == 1 && defaults.string(forKey: "reader.appearance") == "dark"
-                && defaults.integer(forKey: "reader.fontPercent") == 120
+            copied == 1 && defaults.object(forKey: "reader.appearance") as? String == "dark"
+                && defaults.object(forKey: "reader.fontPercent") as? Int == 120
                 && defaults.object(forKey: "NSWindow Frame") == nil,
             "Earlier reader settings are copied without replacing current ones")
-        defaults.removeObject(forKey: "reader.appearance")
+        defaults.values["reader.appearance"] = nil
         try expect(
             LegacyPreferences.migrate(from: legacy, into: defaults) == 0
                 && defaults.object(forKey: "reader.appearance") == nil,

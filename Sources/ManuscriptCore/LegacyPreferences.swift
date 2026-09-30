@@ -1,5 +1,12 @@
 import Foundation
 
+/// The part of `UserDefaults` the migration uses; checks pass an in-memory store.
+public protocol PreferenceStore: AnyObject {
+    func object(forKey defaultName: String) -> Any?
+    func set(_ value: Any?, forKey defaultName: String)
+}
+extension UserDefaults: PreferenceStore {}
+
 /// MyEditor 2.0 uses a new bundle identifier. Its first launch copies the
 /// reader settings of earlier builds (`local.novelreader.app`) once.
 public enum LegacyPreferences {
@@ -9,7 +16,9 @@ public enum LegacyPreferences {
     /// Copies `reader.*` values that the current domain does not have yet.
     /// Returns the number of copied keys; runs at most once per domain.
     @discardableResult
-    public static func migrate(from legacy: [String: Any]?, into defaults: UserDefaults) -> Int {
+    public static func migrate(from legacy: [String: Any]?, into defaults: some PreferenceStore)
+        -> Int
+    {
         guard defaults.object(forKey: marker) == nil else { return 0 }
         defaults.set(legacyDomain, forKey: marker)
         var copied = 0
