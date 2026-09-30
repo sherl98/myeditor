@@ -46,7 +46,10 @@
             let edited = session.source
 
             // Synthetic key events do not follow the hardware ⌘Z path, so the
-            // menu actions are invoked directly with each focus.
+            // menu actions are invoked directly with each focus. Earlier groups may
+            // have left another app in front.
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
             application.searching.focus()
             try await wait("Search field focused") { field.currentEditor() != nil }
             guard let editor = field.currentEditor() as? NSTextView else {
