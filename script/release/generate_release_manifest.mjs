@@ -133,6 +133,8 @@ export async function sourceFingerprint(projectRootPath) {
   const buildInputs = [
     'Package.swift',
     'THIRD_PARTY_NOTICES.md',
+    'Configurations/Info.template.plist',
+    'Configurations/version.json',
     'Sources',
     'Resources',
     'EditorWeb/package.json',

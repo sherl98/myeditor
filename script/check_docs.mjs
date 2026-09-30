@@ -30,5 +30,22 @@ for (const file of files) {
     }
   }
 }
+// The version in Configurations/version.json is the only one to edit.
+const { version } = JSON.parse(
+  await readFile(path.join(root, 'Configurations/version.json'), 'utf8'),
+)
+const packageVersion = JSON.parse(
+  await readFile(path.join(root, 'EditorWeb/package.json'), 'utf8'),
+).version
+if (packageVersion !== version)
+  errors.push(`EditorWeb/package.json version ${packageVersion} != ${version}`)
+const readme = await readFile(path.join(root, 'README.md'), 'utf8')
+if (!readme.includes(`/releases/download/v${version}/`))
+  errors.push(`README.md does not link v${version}`)
+const changelog = await readFile(path.join(root, 'docs/CHANGELOG.md'), 'utf8')
+if (!/^## (.+)$/m.exec(changelog)?.[1].startsWith(version))
+  errors.push(`docs/CHANGELOG.md does not start with ${version}`)
 if (errors.length) throw new Error(errors.join('\n'))
-console.log(`PASS: relative links in ${files.length} current documents`)
+console.log(
+  `PASS: relative links in ${files.length} current documents; version ${version} is consistent`,
+)

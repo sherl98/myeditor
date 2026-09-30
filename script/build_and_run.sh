@@ -2,8 +2,9 @@
 set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
-APP_VERSION="2.0.0"
-APP_BUILD="19"
+# Version and build number live in Configurations/version.json.
+APP_VERSION="$(/usr/bin/plutil -extract version raw -o - "$PROJECT_ROOT/Configurations/version.json")"
+APP_BUILD="$(/usr/bin/plutil -extract build raw -o - "$PROJECT_ROOT/Configurations/version.json")"
 BUNDLE_IDENTIFIER="io.github.sherl98.myeditor"
 EXECUTABLE_NAME="MyEditor"
 PROCESS_PATTERN="MyEditor"
@@ -148,45 +149,23 @@ if [[ ! -f "$PROJECT_ROOT/.cache/MyEditor.icns" || ! -f "$PROJECT_ROOT/.cache/My
 fi
 cp "$PROJECT_ROOT/.cache/MyEditor.icns" "$STAGING/Contents/Resources/MyEditor.icns"
 cp "$ICON_SOURCE" "$STAGING/Contents/Resources/MyEditor.svg"
-cat > "$STAGING/Contents/Info.plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-    <key>CFBundleExecutable</key><string>${EXECUTABLE_NAME}</string>
-    <key>CFBundleIdentifier</key><string>${BUNDLE_IDENTIFIER}</string>
-    <key>CFBundleName</key><string>MyEditor</string>
-    <key>CFBundleDisplayName</key><string>MyEditor</string>
-    <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleIconFile</key><string>MyEditor</string>
-    <key>CFBundleShortVersionString</key><string>${APP_VERSION}</string>
-    <key>CFBundleVersion</key><string>${APP_BUILD}</string>
-    <key>MyEditorBuildIdentifier</key><string>${BUILD_IDENTIFIER}</string>
-    <key>MyEditorBuildConfiguration</key><string>${CONFIGURATION}</string>
-    <key>MyEditorGitCommit</key><string>${GIT_COMMIT}</string>
-    <key>MyEditorGitDirty</key><${GIT_DIRTY}/>
-    <key>MyEditorSourceFingerprint</key><string>${SOURCE_FINGERPRINT}</string>
-    <key>LSMinimumSystemVersion</key><string>26.0</string>
-    <key>NSPrincipalClass</key><string>NSApplication</string>
-    <key>NSHighResolutionCapable</key><true/>
-    <key>NSSupportsAutomaticTermination</key><false/>
-    <key>NSSupportsSuddenTermination</key><false/>
-    <key>CFBundleDevelopmentRegion</key><string>zh_CN</string>
-    <key>CFBundleLocalizations</key><array><string>zh_CN</string><string>en</string></array>
-    <key>CFBundleDocumentTypes</key><array><dict>
-        <key>CFBundleTypeName</key><string>Markdown 文档</string>
-        <key>CFBundleTypeRole</key><string>Editor</string>
-        <key>LSHandlerRank</key><string>Alternate</string>
-        <key>LSItemContentTypes</key><array><string>net.daringfireball.markdown</string></array>
-        <key>CFBundleTypeExtensions</key><array><string>md</string><string>markdown</string><string>mdown</string><string>mkd</string><string>mkdn</string></array>
-    </dict></array>
-    <key>UTImportedTypeDeclarations</key><array><dict>
-        <key>UTTypeIdentifier</key><string>net.daringfireball.markdown</string>
-        <key>UTTypeDescription</key><string>Markdown</string>
-        <key>UTTypeConformsTo</key><array><string>public.plain-text</string></array>
-        <key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>md</string><string>markdown</string><string>mdown</string><string>mkd</string><string>mkdn</string></array></dict>
-    </dict></array>
-</dict></plist>
-PLIST
+# Info.plist comes from Configurations/Info.template.plist; values are filled in here.
+/usr/bin/sed \
+    -e "s|@EXECUTABLE_NAME@|${EXECUTABLE_NAME}|g" \
+    -e "s|@BUNDLE_IDENTIFIER@|${BUNDLE_IDENTIFIER}|g" \
+    -e "s|@APP_VERSION@|${APP_VERSION}|g" \
+    -e "s|@APP_BUILD@|${APP_BUILD}|g" \
+    -e "s|@BUILD_IDENTIFIER@|${BUILD_IDENTIFIER}|g" \
+    -e "s|@CONFIGURATION@|${CONFIGURATION}|g" \
+    -e "s|@GIT_COMMIT@|${GIT_COMMIT}|g" \
+    -e "s|@GIT_DIRTY@|${GIT_DIRTY}|g" \
+    -e "s|@SOURCE_FINGERPRINT@|${SOURCE_FINGERPRINT}|g" \
+    "$PROJECT_ROOT/Configurations/Info.template.plist" > "$STAGING/Contents/Info.plist"
+if /usr/bin/grep -q "@[A-Z_]*@" "$STAGING/Contents/Info.plist"; then
+    echo "Info.plist template has an unfilled placeholder." >&2
+    exit 1
+fi
+/usr/bin/plutil -lint "$STAGING/Contents/Info.plist" >/dev/null
 if [[ "$METRICS" == "1" ]]; then
     # Physical path: .cache may be a symlink (e.g. to keep it out of iCloud), and
     # checks compare fixture URLs with the app's canonical document URLs.

@@ -1,6 +1,6 @@
 # 发布与产物管理
 
-`./script/build_and_run.sh --release --build-only` 创建 Apple Silicon 正式包。版本与 build 位于构建入口；Bundle ID 保持 `local.novelreader.app`。
+`./script/build_and_run.sh --release --build-only` 创建 Apple Silicon 正式包。版本与 build 位于 `Configurations/version.json`；Bundle ID 为 `io.github.sherl98.myeditor`。2.0 首次启动时，一次性复制旧标识 `local.novelreader.app` 下的阅读设置与最近文档，不覆盖已有值。
 
 ## 发布顺序
 
@@ -19,7 +19,7 @@
 
 应用使用本地 ad-hoc 签名；此流程不代表 Developer ID 公证或公开发布。依赖许可证随 Web 构建生成并附在应用资源中。
 
-Preview 2 新增无路径文稿生命周期与原生关闭确认后，Release 可执行文件实测为 1,136,160 字节，超过原来的 1,100,000 字节上限。因此仅将可执行文件预算调整至 1,200,000 字节；应用总大小、ZIP、Web 资源和其余预算保持原限额。
+体积预算：`editorInitialBytes` 统计编辑器页面首屏加载的 HTML、脚本与样式（上限 1,450,000 字节），`editorWebBytes` 统计 `Resources/EditorWeb` 全部文件，包括按需加载的 Mermaid 分块与许可证（上限 5,700,000 字节）；可执行文件上限 1,200,000 字节。应用总大小、ZIP、DMG 与历史备份另有预算。
 
 ## DMG 打包
 
