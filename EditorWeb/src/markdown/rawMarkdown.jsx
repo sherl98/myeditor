@@ -18,8 +18,21 @@ import { markdownOptions, needsRawParagraph, hasMixedTaskItems } from './markdow
 import { SourceEditor } from '../editor/SourceEditor.jsx'
 import { blockCaptureExtension, blockImportVisitor } from '../editor/documentSync.js'
 
+// YAML or TOML front matter: metadata, folded while reading.
+const FRONT_MATTER = /^(---|\+\+\+)\n([\s\S]*?)\n\1$/
+
 function RawBlock({ editor, nodeKey, value, inline }) {
   const readOnly = useCellValue(readOnly$)
+  const frontMatter = !inline && FRONT_MATTER.exec(value)
+  if (frontMatter && readOnly) {
+    const fields = frontMatter[2].split('\n').filter((line) => /^[^\s#-][^:]*:/.test(line)).length
+    return (
+      <details className="front-matter">
+        <summary>元数据{fields ? ` · ${fields} 项` : ''}</summary>
+        <SourceEditor value={value} readOnly={true} nodeKey={nodeKey} label="文档元数据" />
+      </details>
+    )
+  }
   return (
     <SourceEditor
       value={value}
@@ -77,6 +90,14 @@ class RawMarkdownNode extends DecoratorNode {
   }
 }
 
+// Raw Markdown inside a paragraph, heading or table cell flows with the text.
+function isPhrasing(parent) {
+  return (
+    !!parent &&
+    !['root', 'blockquote', 'list', 'listItem', 'footnoteDefinition'].includes(parent.type)
+  )
+}
+
 function rawSource(node) {
   if (node.data?.originalMarkdown) return node.data.originalMarkdown
   if (node.type === 'html') return node.value
@@ -102,13 +123,11 @@ export const rawMarkdownPlugin = realmPlugin({
         {
           priority: 100,
           testNode: (node) =>
-            ['html', 'yaml', 'toml'].includes(node.type) ||
+            ['html', 'yaml', 'toml', 'rawInline', 'footnoteReference'].includes(node.type) ||
             needsRawParagraph(node) ||
             hasMixedTaskItems(node),
           visitNode({ mdastNode, mdastParent, lexicalParent }) {
-            lexicalParent.append(
-              new RawMarkdownNode(rawSource(mdastNode), mdastParent?.type === 'paragraph'),
-            )
+            lexicalParent.append(new RawMarkdownNode(rawSource(mdastNode), isPhrasing(mdastParent)))
           },
         },
         {
@@ -117,7 +136,7 @@ export const rawMarkdownPlugin = realmPlugin({
           visitNode({ mdastNode, mdastParent, lexicalParent }) {
             const raw = rawSource(mdastNode)
             if (!raw) throw new Error('无法无损显示此 Markdown 结构')
-            lexicalParent.append(new RawMarkdownNode(raw, mdastParent?.type === 'paragraph'))
+            lexicalParent.append(new RawMarkdownNode(raw, isPhrasing(mdastParent)))
           },
         },
       ],

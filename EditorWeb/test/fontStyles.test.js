@@ -53,3 +53,11 @@ test('font configuration updates CSS variables without replacing the root', () =
   assert.match(properties.get('--code-font-family'), /^"Menlo", /)
   assert.equal(root.dataset.contentFontSignature, returned.content.signature)
 })
+
+test('only paragraphs written mostly in Latin script leave justification', async () => {
+  const { isMostlyLatin } = await import('../src/styles/scriptDirection.js')
+  assert.ok(isMostlyLatin('Read a little, write a little. A quiet page gives each paragraph room.'))
+  assert.ok(!isMostlyLatin('中西文混排很常见：macOS 26、API 接口、版本 2.0，以及英文句子。'))
+  assert.ok(!isMostlyLatin('清晨的杭州，街角咖啡店刚刚开门。'))
+  assert.ok(!isMostlyLatin('OK'))
+})

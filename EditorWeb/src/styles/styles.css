@@ -89,8 +89,26 @@ body {
   text-align: justify;
   text-align-last: start;
 }
+/* Justified Latin text opens wide gaps between words in a narrow column. */
+.read-only .document-content > p[data-script='latin'],
+.read-only .document-content blockquote > p[data-script='latin'] {
+  text-align: start;
+}
 .read-only .document-content :is(h1, h2, h3, h4, h5, h6) {
   text-wrap-style: balance;
+}
+.front-matter {
+  margin: 0 0 1.4em;
+  color: var(--secondary);
+  font-size: 0.8em;
+}
+.front-matter summary {
+  cursor: default;
+  list-style-position: inside;
+  user-select: none;
+}
+.front-matter[open] summary {
+  margin-bottom: 0.6em;
 }
 .document-content :is(pre, code),
 .cm-editor,

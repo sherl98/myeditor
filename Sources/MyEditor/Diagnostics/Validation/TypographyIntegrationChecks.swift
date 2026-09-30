@@ -103,7 +103,8 @@
                           }
                           return result.sort((a, b) => a.top - b.top);
                         }
-                        const prose = paragraphs.filter(p => !p.querySelector('br'));
+                        const prose = paragraphs.filter(p => !p.querySelector('br') && p.dataset.script !== 'latin');
+                        const latin = paragraphs.filter(p => p.dataset.script === 'latin');
                         const gaps = prose.flatMap(p => lines(p).slice(0, -1).map(line => p.getBoundingClientRect().right - line.right));
                         const tails = prose.map(p => p.getBoundingClientRect().right - lines(p).at(-1).right);
                         const fixedBreak = paragraphs.find(p => p.querySelector('br'));
@@ -123,6 +124,8 @@
                           naturalTails: tails.some(gap => gap > parseFloat(style.fontSize)),
                           hardBreakPreserved: lines(fixedBreak).length === 2 && lines(fixedBreak)[0].right < fixedBreak.getBoundingClientRect().right - parseFloat(style.fontSize),
                           excluded: excluded.every(element => getComputedStyle(element).textAlign !== 'justify'),
+                          latinAlign: latin.map(p => getComputedStyle(p).textAlign),
+                          spacingTrim: CSS.supports('text-spacing-trim', 'trim-start'),
                           code: getComputedStyle(content.querySelector('code')).textAutospace };
                         """) as! [String: Any]
                 let webFrame = webView.convert(webView.bounds, to: window.contentView)
@@ -178,6 +181,10 @@
                         && state["excluded"] as? Bool == true
                         && state["code"] as? String == "no-autospace",
                     "Hard breaks, headings, lists, tables and code retain their own layout at \(width)pt / \(percent)%"
+                )
+                try check(
+                    (state["latinAlign"] as? [String]) == ["start"],
+                    "A Latin-script paragraph is start-aligned instead of justified at \(width)pt / \(percent)%"
                 )
             }
             application.preferences.fontPercent = 120

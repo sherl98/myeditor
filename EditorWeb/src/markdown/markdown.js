@@ -43,13 +43,43 @@ function resolveReferences(root) {
   resolve(root)
 }
 
+// Display math and MDX-style syntax keep the whole paragraph as Markdown.
 export function needsRawParagraph(node) {
   const raw = node.data?.originalMarkdown || ''
   return (
     node.type === 'paragraph' &&
-    (/\[\[[^\n]+?\]\]|\[\^[^\]]+\]|\$\$|\$[^\s$\d][^$\n]*\$/.test(raw) ||
+    (/\$\$/.test(raw) ||
       /(^|\n)\s*(?::{2,}|\{%|import\s.+\sfrom\s|export\s+(?:const|default)|\{[^\n]+\})/.test(raw))
   )
+}
+
+// Inline math, wiki links and footnote references without a definition stay
+// literal inside otherwise rendered text: they become `rawInline` nodes.
+const INLINE_RAW = /\$[^\s$\d][^$\n]*\$|\[\[[^\n]+?\]\]|\[\^[^\]\n]+\]/g
+function splitInlineRaw(root) {
+  function visit(node) {
+    if (!node.children) return
+    if (node.type === 'code' || node.type === 'html') return
+    const children = []
+    for (const child of node.children) {
+      if (child.type !== 'text' || !INLINE_RAW.test(child.value)) {
+        visit(child)
+        children.push(child)
+        continue
+      }
+      INLINE_RAW.lastIndex = 0
+      let last = 0
+      for (const match of child.value.matchAll(INLINE_RAW)) {
+        if (match.index > last)
+          children.push({ type: 'text', value: child.value.slice(last, match.index) })
+        children.push({ type: 'rawInline', value: match[0] })
+        last = match.index + match[0].length
+      }
+      if (last < child.value.length) children.push({ type: 'text', value: child.value.slice(last) })
+    }
+    node.children = children
+  }
+  visit(root)
 }
 
 export function hasMixedTaskItems(node) {
@@ -66,7 +96,7 @@ const preservingMarkdown = {
     listOrdered: closeWithSource,
     listUnordered: closeWithSource,
   },
-  transforms: [resolveReferences],
+  transforms: [resolveReferences, splitInlineRaw],
 }
 
 export const markdownOptions = {

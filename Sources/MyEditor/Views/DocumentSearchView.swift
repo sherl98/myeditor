@@ -115,7 +115,7 @@ private struct NativeDocumentSearchField: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
     func makeNSView(context: Context) -> NSSearchField {
         let field = NSSearchField()
-        field.placeholderString = "搜索全文"
+        field.placeholderString = "搜索"
         field.sendsSearchStringImmediately = true
         field.sendsWholeSearchString = false
         field.delegate = context.coordinator

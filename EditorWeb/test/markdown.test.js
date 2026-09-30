@@ -64,7 +64,17 @@ test('raw extension text survives parsing and CommonMark references resolve', ()
       '\n\n[网站][site]\n\n![相对图片][photo]\n\n[site]: https://example.com "说明"\n[photo]: ./图.png\n',
   )
   assert.equal(ast.children[1].data.originalMarkdown, raw)
-  assert.ok(needsRawParagraph(ast.children[1]))
+  // The paragraph renders; only the extension syntax stays literal.
+  assert.ok(!needsRawParagraph(ast.children[1]))
+  assert.deepEqual(
+    ast.children[1].children.filter((node) => node.type === 'rawInline').map((node) => node.value),
+    ['[[双向链接]]', '$x^2$', '[^注]'],
+  )
+  const defined = parseMarkdown('正文[^1]与 $5 美元。\n\n[^1]: 脚注。\n')
+  assert.equal(defined.children[0].children[1].type, 'footnoteReference')
+  assert.ok(!defined.children[0].children.some((node) => node.type === 'rawInline'))
+  assert.equal(defined.children[1].type, 'footnoteDefinition')
+  assert.ok(needsRawParagraph(parseMarkdown('$$\nx^2\n$$').children[0]))
   assert.equal(ast.children[2].children[0].type, 'link')
   assert.equal(ast.children[2].children[0].url, 'https://example.com')
   assert.equal(ast.children[3].children[0].type, 'image')

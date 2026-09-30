@@ -45,6 +45,7 @@ import {
   inspectSearch,
 } from './search/search.js'
 import { applyEditorFonts } from './styles/fontStyles.js'
+import { markLatinParagraphs } from './styles/scriptDirection.js'
 import {
   abandonImport,
   importDocument,
@@ -392,6 +393,10 @@ function App() {
           light[0] * 0.2126 + light[1] * 0.7152 + light[2] * 0.0722 > 0.179 ? '#111111' : '#ffffff',
         )
         document.documentElement.classList.toggle('read-only', options.readOnly)
+        if (options.readOnly)
+          requestAnimationFrame(() =>
+            markLatinParagraphs(document.querySelector('.document-content')),
+          )
         this.setAppearance(options.appearance, options.resolvedDarkAppearance)
         if (!options.readOnly && wasReadOnly && !options.preserveFocus) {
           requestAnimationFrame(() =>

@@ -104,6 +104,39 @@
                 "The saved file differs from the original by the edited words only")
             application.requestClose(session)
             try await wait("Fidelity document closes") { session.isClosed }
+
+            // Footnotes and inline math stay literal; the rest of the paragraph renders.
+            let notes = "正文有 **粗体**、脚注[^1] 和公式 $E=mc^2$。\n\n[^1]: 脚注内容。\n"
+            let notesURL = directory.appendingPathComponent("脚注公式验收.md")
+            try notes.write(to: notesURL, atomically: true, encoding: .utf8)
+            application.open([notesURL])
+            await application.waitForValidationOpen()
+            guard let noted = application.activeSession,
+                let notedBridge = application.editor(for: noted) as? MarkdownWebEditor.Coordinator
+            else { throw FeatureIntegrationChecks.Failure(message: "Footnote document opens") }
+            try await wait("Footnote editor ready") { noted.editorReady }
+            let rendered =
+                try await notedBridge.evaluateForValidation(
+                    "const p = document.querySelector('.document-content p'); return { strong: !!p?.querySelector('strong'), raw: p ? p.querySelectorAll('[data-lexical-decorator]').length : 0, identical: window.MyEditor.inspect().source === \(String(reflecting: notes)) }"
+                ) as? [String: Any] ?? [:]
+            try check(
+                rendered["strong"] as? Bool == true && rendered["raw"] as? Int == 2
+                    && rendered["identical"] as? Bool == true,
+                "A paragraph with a footnote and inline math renders, keeping both literal")
+            application.toggleEditing(noted)
+            try await wait("Footnote document editable") { noted.isEditing }
+            _ = try await notedBridge.evaluateForValidation(
+                "return await window.MyEditor.validationEditBlock(0, '')")
+            _ = try await notedBridge.evaluateForValidation(
+                "return await window.MyEditor.validationEditBlock(0, '续')")
+            _ = await application.flushEditor(noted)
+            try check(
+                noted.source.hasPrefix("正文有 **粗体**、脚注[^1] 和公式 $E=mc^2$。")
+                    && noted.source.contains("[^1]: 脚注内容。"),
+                "Editing that paragraph keeps the footnote and the formula as written")
+            await application.save(noted, reason: .explicit)
+            application.requestClose(noted)
+            try await wait("Footnote document closes") { noted.isClosed }
             return checks
         }
     }
