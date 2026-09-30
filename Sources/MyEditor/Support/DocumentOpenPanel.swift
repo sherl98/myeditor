@@ -1,4 +1,5 @@
 import AppKit
+import ManuscriptCore
 import UniformTypeIdentifiers
 
 @MainActor
@@ -7,7 +8,9 @@ enum DocumentOpenPanel {
         let panel = NSOpenPanel()
         panel.title = "打开 Markdown 文档"
         panel.message = "选择一个或多个 Markdown 文档。"
-        panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+        panel.allowedContentTypes = ManuscriptCodec.markdownExtensions.sorted().compactMap {
+            UTType(filenameExtension: $0)
+        }
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.canChooseFiles = true

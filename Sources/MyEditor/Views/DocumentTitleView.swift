@@ -60,7 +60,7 @@ private struct DocumentFileActionsView: View {
                     .focused($nameIsFocused)
                     .onSubmit(submit)
                     .accessibilityLabel("文档名称")
-                Text(".md").foregroundStyle(.secondary)
+                Text("." + session.fileExtension).foregroundStyle(.secondary)
             }
             HStack(spacing: 10) {
                 Text("位置：").foregroundStyle(.secondary)

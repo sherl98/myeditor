@@ -12,10 +12,18 @@ final class ApplicationController {
     let preferences = ReaderPreferences()
     let recentDocuments = RecentDocuments()
     @ObservationIgnored private var searches: [UUID: DocumentSearchState] = [:]
+    /// Documents whose network images the user chose to load, and how many
+    /// images each document is currently holding back.
+    private var remoteImageDocuments: Set<UUID> = []
+    private(set) var blockedRemoteImages: [UUID: Int] = [:]
     @ObservationIgnored private var searchTasks: [UUID: Task<Void, Never>] = [:]
     var activeDocumentID: UUID?
     var isQuitting = false
     var isFileDropTargeted = false
+    /// A native text field (search, replace, rename) owns the keyboard, so Edit
+    /// menu commands belong to it rather than to the document.
+    private(set) var nativeTextFocused = false
+    @ObservationIgnored private var windowUpdateObserver: (any NSObjectProtocol)?
     @ObservationIgnored private var windows: [UUID: ReaderWindowController] = [:]
     @ObservationIgnored private var editors: [UUID: WeakMarkdownEditor] = [:]
     @ObservationIgnored private var welcome: WelcomeWindowController?
@@ -30,12 +38,22 @@ final class ApplicationController {
     var activeSession: DocumentSession? { store.sessions.first { $0.id == activeDocumentID } }
     var canUndo: Bool { activeSession?.canUndo ?? false }
     var canRedo: Bool { activeSession?.canRedo ?? false }
+    private static var nativeTextResponder: NSText? { NSApp.keyWindow?.firstResponder as? NSText }
 
     func launch() {
         NSApp.setActivationPolicy(.regular)
         NSWindow.allowsAutomaticWindowTabbing = true
         UserDefaults.standard.register(defaults: ["NSQuitAlwaysKeepsWindows": false])
         preferences.applyAppearance()
+        windowUpdateObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didUpdateNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let focused = Self.nativeTextResponder != nil
+                if self.nativeTextFocused != focused { self.nativeTextFocused = focused }
+            }
+        }
         if store.sessions.isEmpty { showWelcome() }
         NSApp.activate(ignoringOtherApps: true)
         logger.info("Application ready")
@@ -114,8 +132,8 @@ final class ApplicationController {
             guard let self else { return }
             var failures: [String] = []
             for url in urls {
-                guard url.isFileURL, url.pathExtension.lowercased() == "md" else {
-                    failures.append("\(url.lastPathComponent)：请选择 .md 文档。")
+                guard ManuscriptCodec.isMarkdownFile(url) else {
+                    failures.append("\(url.lastPathComponent)：请选择 Markdown 文档（.md、.markdown 等）。")
                     continue
                 }
                 do {
@@ -126,7 +144,9 @@ final class ApplicationController {
                 }
             }
             if !failures.isEmpty {
-                await self.showError("无法打开部分文档", message: failures.joined(separator: "\n\n"))
+                // Report without holding the open queue: later drops still open.
+                let message = failures.joined(separator: "\n\n")
+                Task { await self.showError("无法打开部分文档", message: message) }
             }
         }
     }
@@ -214,6 +234,18 @@ final class ApplicationController {
             updateWindow(for: session)
             return nil
         } catch { return error.localizedDescription }
+    }
+
+    func loadsRemoteImages(_ session: DocumentSession) -> Bool {
+        preferences.loadRemoteImages || remoteImageDocuments.contains(session.id)
+    }
+    func allowRemoteImages(_ session: DocumentSession) {
+        remoteImageDocuments.insert(session.id)
+        blockedRemoteImages[session.id] = nil
+    }
+    func noteBlockedRemoteImages(_ count: Int, in session: DocumentSession) {
+        let value = count > 0 && !loadsRemoteImages(session) ? count : nil
+        if blockedRemoteImages[session.id] != value { blockedRemoteImages[session.id] = value }
     }
 
     func registerEditor(_ editor: any MarkdownEditorControlling, for session: DocumentSession) {
@@ -384,6 +416,21 @@ final class ApplicationController {
         guard let session = activeSession else { return }
         Task { await save(session, reason: .explicit, commitComposition: false) }
     }
+    /// ⌘Z: native text fields keep AppKit's own undo; the document uses the editor's.
+    func performUndo() {
+        if Self.nativeTextResponder != nil {
+            NSApp.sendAction(Selector(("undo:")), to: nil, from: nil)
+        } else {
+            undo()
+        }
+    }
+    func performRedo() {
+        if Self.nativeTextResponder != nil {
+            NSApp.sendAction(Selector(("redo:")), to: nil, from: nil)
+        } else {
+            redo()
+        }
+    }
     func undo() {
         guard let session = activeSession, session.canUndo else { return }
         session.beginEditing()
@@ -484,6 +531,8 @@ final class ApplicationController {
         guard let controller = windows.removeValue(forKey: session.id) else { return }
         searchTasks.removeValue(forKey: session.id)?.cancel()
         searches.removeValue(forKey: session.id)
+        remoteImageDocuments.remove(session.id)
+        blockedRemoteImages[session.id] = nil
         controller.permitClose = true
         store.close(session)
         controller.close()

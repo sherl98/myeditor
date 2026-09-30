@@ -39,6 +39,33 @@ extension Checks {
         try expect(tracked.editorHasPendingChanges, "Repeated pending input stays pending")
     }
 
+    func markdownExtensions() async throws {
+        try expect(
+            ["a.md", "b.markdown", "c.MDOWN", "d.mkd", "e.mkdn"].allSatisfy {
+                ManuscriptCodec.isMarkdownFile(URL(fileURLWithPath: "/tmp/\($0)"))
+            } && !ManuscriptCodec.isMarkdownFile(URL(fileURLWithPath: "/tmp/f.txt")),
+            "Common Markdown extensions are recognised in any case")
+        let url = directory.appendingPathComponent("笔记.markdown")
+        try "# 笔记\n".write(to: url, atomically: true, encoding: .utf8)
+        let files = DiskFileAccess(coordinateAccess: false)
+        let s = try DocumentSession(
+            url: url, snapshot: try await files.read(url), files: files, watch: false)
+        defer { s.close() }
+        s.setEditorReady(true)
+        try await s.rename(to: "新笔记")
+        try expect(
+            s.url?.lastPathComponent == "新笔记.markdown" && s.fileExtension == "markdown",
+            "Rename keeps the document's own Markdown extension")
+        try await s.rename(to: "改用短扩展名.md")
+        try expect(
+            s.url?.lastPathComponent == "改用短扩展名.md", "A typed Markdown extension is used as given")
+        let draft = DocumentSession(untitledName: "未命名")
+        try await draft.rename(to: "草稿.markdown")
+        try expect(
+            draft.suggestedName == "草稿" && draft.fileExtension == "md",
+            "An untitled name drops the typed extension")
+    }
+
     func missingFileRecovery() async throws {
         let s = try await session("comes-back", watch: true)
         defer { s.close() }

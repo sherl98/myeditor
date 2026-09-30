@@ -101,6 +101,11 @@ public final class DocumentSession: Identifiable {
     public var suggestedName: String {
         url?.deletingPathExtension().lastPathComponent ?? untitledName
     }
+    /// The extension a rename keeps, e.g. `md` or `markdown`.
+    public var fileExtension: String {
+        guard let url, !url.pathExtension.isEmpty else { return "md" }
+        return url.pathExtension
+    }
     public var source: String { draftSource ?? savedEditorSource }
     public var title: String {
         outline.first(where: { $0.level == 1 })?.title
@@ -319,10 +324,13 @@ public final class DocumentSession: Identifiable {
             name.rangeOfCharacter(from: .controlCharacters) == nil,
             !name.contains("/"), !name.contains(":")
         else { throw ManuscriptError.invalidName }
-        if !name.lowercased().hasSuffix(".md") { name += ".md" }
+        let typedExtension = (name as NSString).pathExtension.lowercased()
+        if !ManuscriptCodec.markdownExtensions.contains(typedExtension) {
+            name += "." + fileExtension
+        }
         guard name.utf8.count <= 255 else { throw ManuscriptError.invalidName }
         guard let url else {
-            untitledName = String(name.dropLast(3))
+            untitledName = (name as NSString).deletingPathExtension
             return
         }
         if name == url.lastPathComponent { return }

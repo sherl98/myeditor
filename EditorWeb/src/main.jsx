@@ -96,6 +96,23 @@ function finishCompositionWaits() {
   compositionWaiters.clear()
 }
 
+// Network images stay unloaded until the document or the user allows them.
+const blockedImagePlaceholder = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="72"><rect width="320" height="72" rx="10" fill="#8883"/><text x="160" y="41" font-family="-apple-system,system-ui" font-size="14" fill="#888" text-anchor="middle">网络图片未加载</text></svg>',
+)}`
+const blockedImages = new Set()
+let blockedImagesTimer
+function noteBlockedImage(url) {
+  if (blockedImages.has(url)) return
+  blockedImages.add(url)
+  clearTimeout(blockedImagesTimer)
+  blockedImagesTimer = setTimeout(() => post('remoteImages', { blocked: blockedImages.size }), 50)
+}
+function resetBlockedImages() {
+  clearTimeout(blockedImagesTimer)
+  blockedImages.clear()
+}
+
 function applyOutline(headings, force = false) {
   if (force || JSON.stringify(headings) !== JSON.stringify(runtime.outline)) {
     runtime.outline = headings
@@ -193,12 +210,18 @@ function App() {
   const editorRef = useRef(null)
   const [readOnly, setReadOnly] = useState(true)
   const [imageResourceBase, setImageResourceBase] = useState('')
+  const [remoteImages, setRemoteImages] = useState(false)
+  // A new handler makes MDXEditor request every image again, without reloading.
   const pluginsWithImages = useMemo(
     () => [
       ...plugins,
       imagePlugin({
         imagePreviewHandler: async (source) => {
           const preview = imagePreviewURL(source)
+          if (/^https?:/i.test(preview) && !remoteImages) {
+            noteBlockedImage(preview)
+            return blockedImagePlaceholder
+          }
           if (!preview.startsWith('myeditor-resource:')) return preview
           const url = new URL(preview)
           url.searchParams.set('base', imageResourceBase)
@@ -206,7 +229,7 @@ function App() {
         },
       }),
     ],
-    [imageResourceBase],
+    [imageResourceBase, remoteImages],
   )
   const [showsSource, setShowsSource] = useState(false)
   const [sourcePreview, setSourcePreview] = useState('')
@@ -268,6 +291,7 @@ function App() {
         finishCompositionWaits()
         cancelWheel()
         resetSearch()
+        resetBlockedImages()
         cancelOutline()
         stopTracking()
         pendingPosted = false
@@ -390,6 +414,8 @@ function App() {
           )
         }
         setImageResourceBase(options.resourceBase || '')
+        if (options.remoteImages) resetBlockedImages()
+        setRemoteImages(!!options.remoteImages)
       },
       // Native reads the source from the reply; calls made inside the page
       // (search and replace) also notify native of the exported change.

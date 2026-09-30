@@ -128,7 +128,7 @@ final class ReaderWindowController: NSWindowController, NSWindowDelegate, NSTool
         }
     }
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [Self.searchItem, .space, Self.chapterItem, .space, Self.controlsItem]
+        [Self.searchItem, .flexibleSpace, Self.chapterItem, .space, Self.controlsItem]
     }
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         toolbarAllowedItemIdentifiers(toolbar)
@@ -144,18 +144,23 @@ final class ReaderWindowController: NSWindowController, NSWindowDelegate, NSTool
                 rootView: DocumentSearchView(
                     session: session, application: application,
                     state: application.searchState(for: session)))
-            host.setContentHuggingPriority(.init(1), for: .horizontal)
-            host.setContentCompressionResistancePriority(.required, for: .horizontal)
-            host.widthAnchor.constraint(greaterThanOrEqualToConstant: 220).isActive = true
+            host.setContentHuggingPriority(.defaultLow, for: .horizontal)
+            host.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
+            // A search field wider than this only moves its buttons away.
+            host.widthAnchor.constraint(greaterThanOrEqualToConstant: 190).isActive = true
+            host.widthAnchor.constraint(lessThanOrEqualToConstant: 360).isActive = true
             item.view = host
             // Keep the search field and its actions inside one native toolbar container.
             item.isBordered = true
+            // ⌘F needs the field in the toolbar, not in the overflow menu.
             item.visibilityPriority = .user
         } else if identifier == Self.chapterItem {
             item.label = "目录"
             item.view = NSHostingView(
                 rootView: ChapterMenu(session: session, application: application).frame(
                     width: 48, height: 32))
+            // The chapter rail is always beside the text; this menu yields first.
+            item.visibilityPriority = .low
             let representation = NSMenuItem(title: "目录", action: nil, keyEquivalent: "")
             menuNeedsUpdate(chapterOverflowMenu)
             representation.submenu = chapterOverflowMenu
@@ -168,6 +173,8 @@ final class ReaderWindowController: NSWindowController, NSWindowDelegate, NSTool
             host.setContentHuggingPriority(.required, for: .horizontal)
             host.setContentCompressionResistancePriority(.required, for: .horizontal)
             item.view = host
+            // Editing is the main action; it stays visible in narrow windows.
+            item.visibilityPriority = .user
             let representation = NSMenuItem(title: "阅读设置与编辑", action: nil, keyEquivalent: "")
             menuNeedsUpdate(controlsOverflowMenu)
             representation.submenu = controlsOverflowMenu

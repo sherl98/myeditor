@@ -15,23 +15,23 @@ struct DocumentSearchView: View {
                 navigate: { application.findNext(session, by: $0) },
                 ended: { application.endSearch(session, returnToDocument: true) }
             )
-            .frame(minWidth: 64, maxWidth: .infinity, minHeight: 28)
+            .frame(minWidth: 60, maxWidth: .infinity, minHeight: 28)
             Text(state.counter).monospacedDigit().font(.system(size: 11)).foregroundStyle(
                 .secondary
             )
-            .frame(width: 49).lineLimit(1).minimumScaleFactor(0.7)
+            .frame(width: 36).lineLimit(1).minimumScaleFactor(0.6)
             .accessibilityLabel("搜索结果：\(state.current) / \(state.count)")
             Button {
                 application.findNext(session, by: -1)
             } label: {
-                Image(systemName: "chevron.up").frame(width: 24, height: 28)
+                Image(systemName: "chevron.up").frame(width: 22, height: 28)
             }
             .help("上一处 · ⇧⌘G").accessibilityLabel("上一处匹配")
             .disabled(state.count == 0 || state.isSearching)
             Button {
                 application.findNext(session, by: 1)
             } label: {
-                Image(systemName: "chevron.down").frame(width: 24, height: 28)
+                Image(systemName: "chevron.down").frame(width: 22, height: 28)
             }
             .help("下一处 · ⌘G").accessibilityLabel("下一处匹配")
             .disabled(state.count == 0 || state.isSearching)
@@ -60,7 +60,7 @@ struct DocumentSearchView: View {
             } label: {
                 Image(systemName: "text.magnifyingglass")
                     .symbolRenderingMode(.hierarchical)
-                    .frame(width: 26, height: 28)
+                    .frame(width: 24, height: 28)
             }
             .menuStyle(.borderlessButton).menuIndicator(.hidden)
             .help("查找与替换").accessibilityLabel("查找与替换")
@@ -70,7 +70,7 @@ struct DocumentSearchView: View {
         }
         .font(.system(size: 12)).buttonStyle(.borderless)
         .padding(.horizontal, 8)
-        .frame(minWidth: 220, maxWidth: .infinity, minHeight: 32)
+        .frame(minWidth: 190, idealWidth: 190, maxWidth: 360, minHeight: 32)
         .tint(.primary)
         .disabled(!session.editorReady || session.isClosing)
     }

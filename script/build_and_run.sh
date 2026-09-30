@@ -177,13 +177,13 @@ cat > "$STAGING/Contents/Info.plist" <<PLIST
         <key>CFBundleTypeRole</key><string>Editor</string>
         <key>LSHandlerRank</key><string>Alternate</string>
         <key>LSItemContentTypes</key><array><string>net.daringfireball.markdown</string></array>
-        <key>CFBundleTypeExtensions</key><array><string>md</string></array>
+        <key>CFBundleTypeExtensions</key><array><string>md</string><string>markdown</string><string>mdown</string><string>mkd</string><string>mkdn</string></array>
     </dict></array>
     <key>UTImportedTypeDeclarations</key><array><dict>
         <key>UTTypeIdentifier</key><string>net.daringfireball.markdown</string>
         <key>UTTypeDescription</key><string>Markdown</string>
         <key>UTTypeConformsTo</key><array><string>public.plain-text</string></array>
-        <key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>md</string></array></dict>
+        <key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>md</string><string>markdown</string><string>mdown</string><string>mkd</string><string>mkdn</string></array></dict>
     </dict></array>
 </dict></plist>
 PLIST

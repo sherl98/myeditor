@@ -148,10 +148,11 @@ struct PreferencesView: View {
                 }
             }
             .pickerStyle(.menu)
-            Text("首次保存后，停止输入 800 毫秒会自动同步到文件。撤销历史保留到文档关闭。")
+            Toggle("自动加载网络图片", isOn: $preferences.loadRemoteImages)
+            Text("关闭时，打开文档不会请求网络图片，可在文档顶部单独加载。首次保存后，停止输入 800 毫秒会自动同步到文件。撤销历史保留到文档关闭。")
                 .font(.callout).foregroundStyle(.secondary)
         }
-        .formStyle(.grouped).frame(width: 500, height: 390)
+        .formStyle(.grouped).frame(width: 500, height: 430)
         .tint(preferences.accentColor)
     }
 }

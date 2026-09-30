@@ -276,6 +276,7 @@ struct CheckFailure: Error, CustomStringConvertible { let description: String }
             try await checks.editorRecovery()
             try await checks.fileFidelity()
             try await checks.missingFileRecovery()
+            try await checks.markdownExtensions()
             print("PASS: \(checks.count) document checks. All writes used disposable fixtures.")
         } catch {
             print("FAIL: \(error)")

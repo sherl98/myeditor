@@ -38,6 +38,7 @@ struct MarkdownEditorConfiguration: Equatable {
     let resolvedDarkAppearance: Bool
     let accent: String
     let preserveFocus: Bool
+    let remoteImages: Bool
     let railOffset: Int
     let bodyOpticalOffset: Int
 
@@ -59,6 +60,7 @@ struct MarkdownEditorConfiguration: Equatable {
         resolvedDarkAppearance = application.preferences.resolvedDarkAppearance
         accent = application.preferences.accentHex
         preserveFocus = !application.searchState(for: session).query.isEmpty
+        remoteImages = application.loadsRemoteImages(session)
         self.railOffset = railOffset
         self.bodyOpticalOffset = bodyOpticalOffset
     }
@@ -69,7 +71,8 @@ struct MarkdownEditorConfiguration: Equatable {
             "contentFontFace": contentFontFace.webOptions, "codeFontFace": codeFontFace.webOptions,
             "appearance": appearance,
             "resolvedDarkAppearance": resolvedDarkAppearance,
-            "accent": accent, "preserveFocus": preserveFocus, "railOffset": railOffset,
+            "accent": accent, "preserveFocus": preserveFocus, "remoteImages": remoteImages,
+            "railOffset": railOffset,
             "bodyOpticalOffset": bodyOpticalOffset,
         ]
     }
@@ -239,6 +242,9 @@ struct MarkdownWebEditor: NSViewRepresentable {
             case "search": application.searchState(for: session).receive(body)
             case "composition": session.setComposing(body["composing"] as? Bool ?? false)
             case "notice": session.setEditorNotice(body["message"] as? String)
+            case "remoteImages":
+                application.noteBlockedRemoteImages(
+                    (body["blocked"] as? NSNumber)?.intValue ?? 0, in: session)
             case "blur":
                 Task { [weak self] in
                     guard let self, !self.session.isClosing else { return }
@@ -434,7 +440,7 @@ struct MarkdownWebEditor: NSViewRepresentable {
             }
             if url.scheme == "http" || url.scheme == "https" || url.scheme == "mailto" {
                 NSWorkspace.shared.open(url)
-            } else if url.isFileURL, url.pathExtension.lowercased() == "md" {
+            } else if ManuscriptCodec.isMarkdownFile(url) {
                 application.open([url])
             }
             decisionHandler(.cancel)

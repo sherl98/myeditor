@@ -84,14 +84,17 @@
             // "perf" only runs when named: it records timings rather than gating regressions.
             for group in [
                 "new-document", "typography", "search-clear", "search", "mermaid", "large", "fonts",
-                "empty", "recovery", "fidelity", "perf",
+                "empty", "recovery", "fidelity", "interaction", "perf",
             ]
             where (phase == "all" && group != "perf")
                 || phase.split(separator: ",").contains(Substring(group))
             {
                 completed = []
                 do {
-                    if group == "fidelity" {
+                    if group == "interaction" {
+                        completed = try await InteractionIntegrationChecks.run(
+                            application: application, directory: directory)
+                    } else if group == "fidelity" {
                         completed = try await FidelityIntegrationChecks.run(
                             application: application, directory: directory)
                     } else if group == "perf" {

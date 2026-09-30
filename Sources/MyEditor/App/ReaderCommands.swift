@@ -28,11 +28,11 @@ struct ReaderCommands: Commands {
                 .disabled(application.isQuitting)
         }
         CommandGroup(replacing: .undoRedo) {
-            Button("撤销", action: application.undo).keyboardShortcut("z").disabled(
-                !application.canUndo)
-            Button("重做", action: application.redo).keyboardShortcut(
+            Button("撤销", action: application.performUndo).keyboardShortcut("z").disabled(
+                !application.nativeTextFocused && !application.canUndo)
+            Button("重做", action: application.performRedo).keyboardShortcut(
                 "z", modifiers: [.command, .shift]
-            ).disabled(!application.canRedo)
+            ).disabled(!application.nativeTextFocused && !application.canRedo)
         }
         CommandGroup(after: .textEditing) {
             Divider()

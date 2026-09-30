@@ -79,6 +79,10 @@ final class ReaderPreferences {
     var codeFont: EditorFontSelection {
         didSet { Self.store(codeFont, forKey: "reader.codeFont") }
     }
+    /// Network images reveal when a document is read; off unless the user opts in.
+    var loadRemoteImages: Bool {
+        didSet { UserDefaults.standard.set(loadRemoteImages, forKey: "reader.loadRemoteImages") }
+    }
     var scale: CGFloat { CGFloat(fontPercent) / 100 }
     var fontSize: CGFloat { 21 * scale }
     var accentChoice: ReaderAccent {
@@ -122,6 +126,7 @@ final class ReaderPreferences {
         fontPercent = (80...140).contains(stored) && stored % 10 == 0 ? stored : 100
         contentFont = Self.storedFont(forKey: "reader.contentFont") ?? .systemDefault
         codeFont = Self.storedFont(forKey: "reader.codeFont") ?? .systemMonospaced
+        loadRemoteImages = UserDefaults.standard.bool(forKey: "reader.loadRemoteImages")
         if let storedChoice = UserDefaults.standard.string(forKey: "reader.accentChoice"),
             let choice = ReaderAccent(rawValue: storedChoice)
         {

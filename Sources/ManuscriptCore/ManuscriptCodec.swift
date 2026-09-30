@@ -37,6 +37,12 @@ public struct DocumentHeading: Identifiable, Equatable, Codable, Sendable {
 
 /// Markdown structure is navigation metadata, never a condition for opening or saving a file.
 public enum ManuscriptCodec {
+    /// File name extensions opened as Markdown. New documents use `.md`.
+    public static let markdownExtensions: Set<String> = ["md", "markdown", "mdown", "mkd", "mkdn"]
+    public static func isMarkdownFile(_ url: URL) -> Bool {
+        url.isFileURL && markdownExtensions.contains(url.pathExtension.lowercased())
+    }
+
     public static func revision(_ source: String) -> String {
         SHA256.hash(data: Data(source.utf8)).map { String(format: "%02x", $0) }.joined()
     }

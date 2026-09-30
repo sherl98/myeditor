@@ -10,6 +10,8 @@ struct ReaderView: View {
         VStack(spacing: 0) {
             if session.hasConflict || session.issue != nil {
                 DocumentNotice(session: session, application: application)
+            } else if let blocked = application.blockedRemoteImages[session.id] {
+                RemoteImageNotice(count: blocked, session: session, application: application)
             }
             ZStack(alignment: .leading) {
                 MarkdownWebEditor(
@@ -75,6 +77,25 @@ struct ReaderView: View {
         .onChange(of: session.hasUnsavedChanges) { application.updateWindow(for: session) }
         .onChange(of: session.displayName) { application.updateWindow(for: session) }
         .onChange(of: session.url) { application.updateWindow(for: session) }
+    }
+}
+
+private struct RemoteImageNotice: View {
+    let count: Int
+    let session: DocumentSession
+    let application: ApplicationController
+    var body: some View {
+        HStack(spacing: 10) {
+            Label("已阻止 \(count) 张网络图片，打开文档时不会联网。", systemImage: "photo.badge.exclamationmark")
+                .font(.callout).foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            Button("加载图片") { application.allowRemoteImages(session) }
+            Button("始终加载") { application.preferences.loadRemoteImages = true }
+        }
+        .controlSize(.small)
+        .padding(.horizontal, 20).padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.35))
     }
 }
 
