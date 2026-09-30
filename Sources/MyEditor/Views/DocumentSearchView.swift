@@ -16,11 +16,14 @@ struct DocumentSearchView: View {
                 ended: { application.searching.end(session, returnToDocument: true) }
             )
             .frame(minWidth: 60, maxWidth: .infinity, minHeight: 28)
-            Text(state.counter).monospacedDigit().font(.system(size: 11)).foregroundStyle(
-                .secondary
-            )
-            .frame(width: 36).lineLimit(1).minimumScaleFactor(0.6)
-            .accessibilityLabel("搜索结果：\(state.current) / \(state.count)")
+            // The empty field needs the counter's width for its placeholder.
+            if !state.query.isEmpty {
+                Text(state.counter).monospacedDigit().font(.system(size: 11)).foregroundStyle(
+                    .secondary
+                )
+                .frame(width: 36).lineLimit(1).minimumScaleFactor(0.6)
+                .accessibilityLabel("搜索结果：\(state.current) / \(state.count)")
+            }
             Button {
                 application.searching.findNext(session, by: -1)
             } label: {
@@ -70,7 +73,7 @@ struct DocumentSearchView: View {
         }
         .font(.system(size: 12)).buttonStyle(.borderless)
         .padding(.horizontal, 8)
-        .frame(minWidth: 190, idealWidth: 190, maxWidth: 360, minHeight: 32)
+        .frame(minWidth: 190, idealWidth: 190, maxWidth: .infinity, minHeight: 32)
         .tint(.primary)
         .disabled(!session.editorReady || session.isClosing)
     }

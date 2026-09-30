@@ -76,16 +76,37 @@
             application.performUndo()
             try await wait("Document undo applies") { !session.source.contains("已编辑") }
             try check(true, "Undo with the document focused undoes the document edit")
-            // Narrow windows keep the edit controls in the toolbar itself.
+            // Narrow windows keep the edit controls in the toolbar itself; wider
+            // windows give the free width to the search field.
+            let prompt = ((field.placeholderString ?? "") as NSString).size(
+                withAttributes: [.font: field.font ?? .systemFont(ofSize: 12)]
+            ).width
             for width in [480.0, 640, 960] {
                 window.setFrame(
                     NSRect(origin: window.frame.origin, size: NSSize(width: width, height: 700)),
                     display: true)
                 try await Task.sleep(for: .milliseconds(300))
-                let visible = window.toolbar?.visibleItems?.map(\.itemIdentifier.rawValue) ?? []
+                let items = window.toolbar?.visibleItems ?? []
+                let visible = items.map(\.itemIdentifier.rawValue)
                 try check(
                     visible.contains("reader.controls") && visible.contains("reader.search"),
                     "At \(Int(width)) pt the edit controls and search stay visible")
+                let search = host.convert(host.bounds, to: nil)
+                let next =
+                    items.compactMap(\.view).filter { $0 !== host }
+                    .map { $0.convert($0.bounds, to: nil).minX }
+                    .filter { $0 >= search.maxX }.min() ?? search.maxX
+                let text =
+                    (field.cell as? NSSearchFieldCell)?.searchTextRect(forBounds: field.bounds)
+                    .width ?? 0
+                try check(
+                    next - search.maxX <= 32,
+                    "At \(Int(width)) pt the search field fills the free width (gap \(Int(next - search.maxX)) pt)"
+                )
+                try check(
+                    text >= prompt + 4,
+                    "At \(Int(width)) pt the placeholder fits (\(Int(text)) of \(Int(prompt)) pt)"
+                )
             }
             await application.save(session, reason: .explicit)
             application.requestClose(session)

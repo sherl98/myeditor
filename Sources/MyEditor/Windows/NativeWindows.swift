@@ -128,7 +128,7 @@ final class ReaderWindowController: NSWindowController, NSWindowDelegate, NSTool
         }
     }
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [Self.searchItem, .flexibleSpace, Self.chapterItem, .space, Self.controlsItem]
+        [Self.searchItem, .space, Self.chapterItem, .space, Self.controlsItem]
     }
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         toolbarAllowedItemIdentifiers(toolbar)
@@ -144,11 +144,10 @@ final class ReaderWindowController: NSWindowController, NSWindowDelegate, NSTool
                 rootView: DocumentSearchView(
                     session: session, application: application,
                     state: application.searching.state(for: session)))
-            host.setContentHuggingPriority(.defaultLow, for: .horizontal)
+            // The search field takes all the width the other items leave.
+            host.setContentHuggingPriority(.init(1), for: .horizontal)
             host.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
-            // A search field wider than this only moves its buttons away.
             host.widthAnchor.constraint(greaterThanOrEqualToConstant: 190).isActive = true
-            host.widthAnchor.constraint(lessThanOrEqualToConstant: 360).isActive = true
             item.view = host
             // Keep the search field and its actions inside one native toolbar container.
             item.isBordered = true

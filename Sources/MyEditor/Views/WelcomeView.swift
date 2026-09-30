@@ -11,25 +11,19 @@ struct WelcomeView: View {
                 Text("随心编阅")
                     .font(.system(size: 30, weight: .semibold))
                 Button(action: application.openPicker) {
-                    VStack(spacing: 10) {
-                        Image(systemName: "document.badge.plus")
-                            .font(.system(size: 28))
-                            .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(
-                                targeted ? application.preferences.accentColor : Color.secondary
-                            )
-                            .symbolEffect(.bounce, value: dropAnimation)
-                        Text("打开 Markdown 文档")
-                            .font(.system(size: 14, weight: .medium))
-                        Text("或将文件拖到这里")
-                            .font(.system(size: 12)).foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity).frame(height: 240)
-                    .background(
-                        .quaternary.opacity(targeted || openFocused ? 0.8 : 0.3),
-                        in: RoundedRectangle(cornerRadius: 16)
-                    )
-                    .contentShape(RoundedRectangle(cornerRadius: 16))
+                    Image(systemName: "document.badge.plus")
+                        .font(.system(size: 28))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(
+                            targeted ? application.preferences.accentColor : Color.secondary
+                        )
+                        .symbolEffect(.bounce, value: dropAnimation)
+                        .frame(maxWidth: .infinity).frame(height: 240)
+                        .background(
+                            .quaternary.opacity(targeted || openFocused ? 0.8 : 0.3),
+                            in: RoundedRectangle(cornerRadius: 16)
+                        )
+                        .contentShape(RoundedRectangle(cornerRadius: 16))
                 }
                 .buttonStyle(.plain)
                 .focusable()
