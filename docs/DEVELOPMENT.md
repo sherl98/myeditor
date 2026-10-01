@@ -15,7 +15,7 @@ SwiftPM 的缓存被定向到本项目。受限宿主若阻止嵌套清单沙盒
 
 仓库位于 iCloud 同步的文件夹（例如“文稿”）时，iCloud 会在构建期间改名或移动产物目录，导致构建偶发失败。可把缓存改名为 `.cache.nosync`、`.build.nosync` 并在原位置放符号链接；验证脚本使用缓存的物理路径，不受影响。
 
-版本号与 build 只在 `Configurations/version.json` 修改；`script/check_docs.mjs` 核对 `EditorWeb/package.json`、README 下载链接和 CHANGELOG。Info.plist 由 `Configurations/Info.template.plist` 生成。
+应用版本号与 build 以 `Configurations/version.json` 为准；修改版本时同步 `EditorWeb/package.json` 和锁文件的项目版本。`script/check_docs.mjs` 核对 Web 项目版本、README 发布页或当前版本下载链接和 CHANGELOG。Info.plist 由 `Configurations/Info.template.plist` 生成。
 
 ## 修改约定
 

@@ -19,7 +19,7 @@
 
 应用使用本地 ad-hoc 签名；此流程不代表 Developer ID 公证或公开发布。依赖许可证随 Web 构建生成并附在应用资源中。
 
-体积预算：`editorInitialBytes` 统计编辑器页面首屏加载的 HTML、脚本与样式（上限 1,450,000 字节），`editorWebBytes` 统计 `Resources/EditorWeb` 全部文件，包括按需加载的 Mermaid 分块与许可证（上限 5,700,000 字节）；可执行文件上限 1,200,000 字节。应用总大小、ZIP、DMG 与历史备份另有预算。2.0.0 把编辑器拆成按需加载的分块后，每个标签页的内存约减半，但 ZIP 按文件压缩的效率略低：实测 ZIP 2,220,747 字节、应用 6,785,623 字节，因此经审查将 ZIP 上限调至 2,300,000、应用上限调至 7,000,000 字节。
+体积预算：`editorInitialBytes` 统计编辑器页面首屏加载的 HTML、脚本与样式（上限 1,450,000 字节），`editorWebBytes` 统计 `Resources/EditorWeb` 全部文件，包括按需加载的 Mermaid 分块与许可证（上限 5,700,000 字节）；可执行文件上限 1,200,000 字节。应用总大小、ZIP 与历史备份另有预算；DMG 大小单独记录，目前没有独立上限。2.0.0 把编辑器拆成按需加载的分块后，小文档的 WebContent 进程内存约减半，但 ZIP 按文件压缩的效率略低：调整预算时的样本 ZIP 为 2,220,747 字节、应用为 6,785,623 字节，因此经审查将 ZIP 上限调至 2,300,000、应用上限调至 7,000,000 字节。当前产物大小以同代发布清单为准。
 
 ## DMG 打包
 
@@ -37,11 +37,28 @@ node script/release/create_dmg.mjs dist/MyEditor.app .cache/dmg-preview/MyEditor
 
 DMG 随同一代 App/ZIP 备份保留或清理；旧的无 DMG 备份仍可用于恢复。DMG 体积单独记录，原有 ZIP 预算继续约束 ZIP。`previousBuildsLogicalBytes` 的实测值包含 DMG，新增产物后如超过既有备份预算，需根据实际大小审查预算，不自动放宽限制。
 
-## 公开源码与对外分发准备
+Finder 或文件同步服务可能在打包后给本地 `.app` 添加 `com.apple.FinderInfo`，使严格验签失败。先检查错误是否只涉及 Finder 元数据；仅对生成的应用移除 `com.apple.FinderInfo`、`com.apple.ResourceFork` 后复验。ZIP 打包已排除这些属性。发布时核对实际待上传 ZIP/DMG 的 SHA-256、解包或挂载后的应用签名，不以裸 `.app` 的状态推断压缩包状态。
 
-- 公开源码前确定项目许可证，保留开源依赖的版权与许可说明；本次打包改动不自动授予源码开源许可。
-- 对外分发前配置 Developer ID Application 签名、Hardened Runtime 和所需 entitlement，再完成 DMG 签名、Apple 公证与凭证附加。证书、私钥和认证信息保存在本机钥匙串或受保护的 CI 凭据中，不提交到仓库。
-- 当前构建仍为 ad-hoc 签名且未公证；可生成 DMG 不等于已满足公开分发条件。签名流程升级时应同步更新清单中的 `distribution` 字段。
-- 正式发布前，在启用 Gatekeeper 的另一台支持的 Mac 上验证浏览器下载、挂载、拖入 Applications、首次启动、打开与保存合成文档。当前支持 Apple Silicon 和 macOS 26+。
+## 本地清理
+
+保留当前 `dist`、待上传文件与校验清单、最近三代完整发布备份、当前开发依赖及 `.codex` Run 配置。使用 `node script/release/prune_previous_builds.mjs --directory .cache/previous-builds --keep 3 --apply` 整理发布备份。
+
+清理旧验证目录前，保留当前源码对应的报告、最近一次完整功能与编辑器检查、性能基线及最终测量；其他结果先记录构建标识、源码指纹与成败，再移除重复样本、截图和失败运行残留。旧源码副本只有在无未提交改动、文件及提交均已保存在当前 Git 历史中时才删除。中断的 staging 目录需确认没有进程或磁盘映像仍在使用。
+
+## 对外分发与 GitHub Release
+
+源码使用仓库中的 MIT 许可证；保留 [LICENSE](../LICENSE)、[THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) 及应用内生成的依赖许可说明。
+
+当前 2.0.0 候选包沿用预览版的 ad-hoc 签名，尚未完成 Apple 公证。以此包发布时，README、Release 说明与清单的 `distribution` 字段必须一致说明这一状态，以及首次打开可能需要在“系统设置 → 隐私与安全性”中允许。严格签名校验通过只证明包的完整性，不代表 Gatekeeper 会自动放行。
+
+如果选择升级为 Apple 公证分发，需另行配置 Developer ID Application 签名、Hardened Runtime 和实际需要的 entitlement，再完成 DMG 签名、公证与凭证附加，并更新清单中的 `distribution` 字段。证书、私钥和认证信息保存在本机钥匙串或受保护的 CI 凭据中，不提交到仓库；当前脚本没有实现这套公证流程。
+
+正式发布前，在启用 Gatekeeper 的另一台支持的 Mac 上验证浏览器下载、挂载、拖入 Applications、首次启动、打开与保存合成文档，并补查最低支持版本 macOS 26 与真实中文输入法。只在 macOS 27 上完成的自动检查不能替代这些记录。当前支持 Apple Silicon 和 macOS 26+。
+
+本地构建脚本及 `publish_release.mjs` 只生成和替换本地 `dist`，不会推送 Git 或创建 GitHub Release。实际发布时：
+
+1. 确认发布提交、版本、build 和清单一致，将该提交推送到 GitHub，并让 `v2.0.0` 标签指向清单记录的提交。
+2. 使用与 CHANGELOG 一致的说明创建 Release，上传同一代 `MyEditor.dmg`、`MyEditor.zip`、`MyEditor.release-manifest.json` 与 `SHA256SUMS.txt`。dSYM 留作调试存档。
+3. 从 Release 重新下载并核对 SHA-256，确认 README 发布页入口能访问相应版本。未完成之前，不把本地产物记录为已公开发布。
 
 参考：[Apple 的 Mac 软件打包指南](https://developer.apple.com/documentation/xcode/packaging-mac-software-for-distribution)与[公证指南](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution)。

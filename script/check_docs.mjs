@@ -40,8 +40,12 @@ const packageVersion = JSON.parse(
 if (packageVersion !== version)
   errors.push(`EditorWeb/package.json version ${packageVersion} != ${version}`)
 const readme = await readFile(path.join(root, 'README.md'), 'utf8')
-if (!readme.includes(`/releases/download/v${version}/`))
-  errors.push(`README.md does not link v${version}`)
+const releasesURL = 'https://github.com/sherl98/myeditor/releases'
+if (
+  !readme.includes(`](${releasesURL})`) &&
+  !readme.includes(`](${releasesURL}/download/v${version}/MyEditor.dmg)`)
+)
+  errors.push(`README.md does not link the releases page or the v${version} DMG`)
 const changelog = await readFile(path.join(root, 'docs/CHANGELOG.md'), 'utf8')
 if (!/^## (.+)$/m.exec(changelog)?.[1].startsWith(version))
   errors.push(`docs/CHANGELOG.md does not start with ${version}`)

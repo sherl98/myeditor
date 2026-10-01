@@ -1,7 +1,9 @@
 # Generated builds and local state
 .build/
+.build.nosync/
 .swiftpm/
 .cache/
+.cache.nosync/
 dist/
 dist */
 .DS_Store
