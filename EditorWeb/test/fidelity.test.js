@@ -6,7 +6,6 @@ import {
   inferMarkdownStyle,
   outlineFromBlocks,
   parseMarkdown,
-  referenceDefinitions,
   referenceUsages,
   restoreReferenceLinks,
   visibleCharacterCount,
@@ -85,8 +84,8 @@ test('syntax style is inferred from the original Markdown', () => {
 
 test('edited reference links are written as references again', () => {
   const source =
-    '参考 [示例][ref] 与 [简写][]、![图][pic]。\n\n[ref]: https://example.com "标题"\n[简写]: https://short.example\n[pic]: ./图.png'
-  const definitions = referenceDefinitions(source)
+    '参考 [示例][ref] 与 [简写][]、![图][pic]。\n\n```md\n[ref]: /literal\n```\n\n[ref]: https://example.com "标题"\n[简写]: https://short.example\n> [pic]:\n>   <./图.png>'
+  const definitions = parseMarkdown(source).data.referenceDefinitions
   assert.deepEqual(definitions.get('ref'), { url: 'https://example.com', title: '标题' })
   const usages = referenceUsages(source)
   const exported =

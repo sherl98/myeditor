@@ -26,11 +26,12 @@ function resolveReferences(root) {
   const definitions = new Map()
   function collect(node) {
     if (node.type === 'definition' && !definitions.has(node.identifier.toLowerCase())) {
-      definitions.set(node.identifier.toLowerCase(), node)
+      definitions.set(node.identifier.toLowerCase(), { url: node.url, title: node.title })
     }
     node.children?.forEach(collect)
   }
   collect(root)
+  root.data = { ...root.data, referenceDefinitions: definitions }
   function resolve(node) {
     const definition = definitions.get(node.identifier?.toLowerCase())
     if (definition && (node.type === 'linkReference' || node.type === 'imageReference')) {
@@ -180,19 +181,6 @@ export function inferMarkdownStyle(text) {
   if (/^[^\n]+\n {0,3}=+[ \t]*$/m.test(text) || /^[^\n]+\n {0,3}-+[ \t]*$/.test(text.trim()))
     style.setext = true
   return style
-}
-
-// Link reference definitions of a document: label (lower case) -> { url, title }.
-export function referenceDefinitions(text) {
-  const definitions = new Map()
-  const pattern =
-    /^ {0,3}\[([^\]\n]+)\]:[ \t]*<?([^\s>]+)>?(?:[ \t]+(?:"([^"\n]*)"|'([^'\n]*)'|\(([^)\n]*)\)))?[ \t]*$/gm
-  for (const match of text.matchAll(pattern)) {
-    const label = match[1].toLowerCase()
-    if (!definitions.has(label))
-      definitions.set(label, { url: match[2], title: match[3] ?? match[4] ?? match[5] })
-  }
-  return definitions
 }
 
 // Reference links written in a document, e.g. `[text][label]` or `![alt][]`.

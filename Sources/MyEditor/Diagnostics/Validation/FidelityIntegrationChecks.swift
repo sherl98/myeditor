@@ -5,6 +5,8 @@
     /// Editing one block writes that block only; untouched Markdown keeps its bytes.
     @MainActor enum FidelityIntegrationChecks {
         static let source = """
+            [unused]: /unused
+
             Setext 标题
             ==========
 
@@ -25,15 +27,20 @@
             |:---|:---:|---:|
             | a | b | c |
 
-            参考链接 [示例][ref]。
+            参考链接 [示例][ref] 与 ![像素][pixel]。
 
             [ref]: https://example.com "标题"
 
             <details><summary>HTML</summary>内容</details>
 
+            > [nested]: <https://example.org/nested>
+            >
+            > 引用正文。
 
             最后一段。
 
+            [pixel]:
+              <data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYGAAAAAEAAH2FzhVAAAAAElFTkSuQmCC>
 
             """
 
@@ -68,18 +75,39 @@
                 let bridge = application.editor(for: session) as? MarkdownWebEditor.Coordinator
             else { throw FeatureIntegrationChecks.Failure(message: "Fidelity document opens") }
             try await wait("Fidelity editor ready") { session.editorReady }
+            let referencesRender =
+                try await bridge.evaluateForValidation(
+                    """
+                    const body = document.querySelector('.document-content');
+                    // Image previews mount asynchronously after the editor reports ready.
+                    for (let i = 0; i < 100 && !body.querySelector('img[alt="像素"]'); i++)
+                        await new Promise(resolve => setTimeout(resolve, 30));
+                    const image = body.querySelector('img[alt="像素"]');
+                    if (!image) return false;
+                    await image.decode();
+                    return image.naturalWidth === 1
+                        && !!body.querySelector('a[href="https://example.com"]')
+                        && body.innerText.trimEnd().endsWith('最后一段。')
+                        && ['[unused]:', '[ref]:', '[nested]:', '[pixel]:', 'data:image/png']
+                            .every(text => !body.textContent.includes(text))
+                        && !body.querySelector('blockquote .source-editor');
+                    """) as? Bool
+            try check(
+                referencesRender == true,
+                "Reference targets render at their uses and declarations stay out of the body")
             application.toggleEditing(session)
             try await wait("Fidelity document editable") { session.isEditing }
             let sync =
                 try await bridge.evaluateForValidation("return window.MyEditor.inspect().sync")
                 as? [String: Any] ?? [:]
             try check(
-                sync["preserving"] as? Bool == true && sync["blocks"] as? Int == 11,
-                "Every Markdown block maps to editor nodes")
+                sync["preserving"] as? Bool == true && sync["blocks"] as? Int == 14,
+                "The source map retains editable blocks and reference declarations")
             // Block index -> the only line expected to change.
             let edits: [(Int, String)] = [
                 (0, "Setext 标题改"), (1, "第一段有 _下划线斜体_ 和 __下划线粗体__。改"), (2, "+ 加号列表二改"),
-                (3, "2) 第二项改"), (7, "参考链接 [示例][ref]。改"), (10, "最后一段。改"),
+                (3, "2) 第二项改"), (7, "参考链接 [示例][ref] 与 ![像素][pixel]。改"),
+                (9, "> 引用正文。改"), (10, "最后一段。改"),
             ]
             for (index, expected) in edits {
                 _ = try await bridge.evaluateForValidation(
@@ -94,6 +122,18 @@
                     session.source == source && !session.hasDraft,
                     "Undo in block \(index) restores the original bytes")
             }
+            _ = try await bridge.evaluateForValidation(
+                "return await window.MyEditor.validationEdit('新增段落。')")
+            _ = await application.flushEditor(session)
+            try check(
+                session.source
+                    == source.replacingOccurrences(
+                        of: "最后一段。\n\n[pixel]:", with: "最后一段。\n\n新增段落。\n\n[pixel]:"),
+                "Appending visible text keeps leading, interior and trailing definitions in place")
+            await bridge.undo()
+            _ = await application.flushEditor(session)
+            try check(
+                session.source == source, "Undoing the appended paragraph restores every byte")
             _ = try await bridge.evaluateForValidation(
                 "return await window.MyEditor.validationEditBlock(10, '改')")
             try check(

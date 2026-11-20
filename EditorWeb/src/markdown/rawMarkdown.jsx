@@ -1,5 +1,5 @@
 import React from 'react'
-import { DecoratorNode, $getNodeByKey } from 'lexical'
+import { DecoratorNode, $getNodeByKey, $getState, $setState, createState } from 'lexical'
 import { useCellValue } from '@mdxeditor/gurx'
 import {
   realmPlugin,
@@ -90,6 +90,36 @@ class RawMarkdownNode extends DecoratorNode {
   }
 }
 
+// Nested definitions travel with their quote or list item when it is edited.
+// Lexical needs a DOM anchor; the declaration itself stays in node state.
+const definitionSource = createState('source', {
+  parse: (value) => (typeof value === 'string' ? value : ''),
+})
+
+class ReferenceDefinitionNode extends DecoratorNode {
+  $config() {
+    return this.config('reference-definition', {
+      extends: DecoratorNode,
+      stateConfigs: [definitionSource],
+    })
+  }
+  createDOM() {
+    return document.createElement('template')
+  }
+  updateDOM() {
+    return false
+  }
+  isInline() {
+    return false
+  }
+  isIsolated() {
+    return true
+  }
+  isKeyboardSelectable() {
+    return false
+  }
+}
+
 // Raw Markdown inside a paragraph, heading or table cell flows with the text.
 function isPhrasing(parent) {
   return (
@@ -117,9 +147,17 @@ export const rawMarkdownPlugin = realmPlugin({
     realm.pubIn({
       [addSyntaxExtension$]: markdownOptions.extensions,
       [addMdastExtension$]: [...markdownOptions.mdastExtensions, blockCaptureExtension],
-      [addLexicalNode$]: RawMarkdownNode,
+      [addLexicalNode$]: [RawMarkdownNode, ReferenceDefinitionNode],
       [addImportVisitor$]: [
         blockImportVisitor,
+        {
+          testNode: 'definition',
+          visitNode({ mdastNode, lexicalParent }) {
+            lexicalParent.append(
+              $setState(new ReferenceDefinitionNode(), definitionSource, rawSource(mdastNode)),
+            )
+          },
+        },
         {
           priority: 100,
           testNode: (node) =>
@@ -140,12 +178,23 @@ export const rawMarkdownPlugin = realmPlugin({
           },
         },
       ],
-      [addExportVisitor$]: {
-        testLexicalNode: (node) => node instanceof RawMarkdownNode,
-        visitLexicalNode({ lexicalNode, mdastParent, actions }) {
-          actions.appendToParent(mdastParent, { type: 'rawMarkdown', value: lexicalNode.__raw })
+      [addExportVisitor$]: [
+        {
+          testLexicalNode: (node) => node instanceof RawMarkdownNode,
+          visitLexicalNode({ lexicalNode, mdastParent, actions }) {
+            actions.appendToParent(mdastParent, { type: 'rawMarkdown', value: lexicalNode.__raw })
+          },
         },
-      },
+        {
+          testLexicalNode: (node) => node instanceof ReferenceDefinitionNode,
+          visitLexicalNode({ lexicalNode, mdastParent, actions }) {
+            actions.appendToParent(mdastParent, {
+              type: 'rawMarkdown',
+              value: $getState(lexicalNode, definitionSource),
+            })
+          },
+        },
+      ],
       [addToMarkdownExtension$]: { handlers: { rawMarkdown: (node) => node.value } },
     })
   },

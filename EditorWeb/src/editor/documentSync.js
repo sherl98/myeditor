@@ -12,7 +12,6 @@ import {
   blockHeadings,
   inferMarkdownStyle,
   outlineFromBlocks,
-  referenceDefinitions,
   referenceUsages,
   restoreReferenceLinks,
   visibleCharacterCount,
@@ -35,6 +34,7 @@ const sync = {
   // Original text layout: blocks[i] = { start, end, keys }, plus separators.
   source: '',
   blocks: [],
+  definitionBlocks: [],
   firstKeys: new Map(),
   baseline: null,
   fingerprints: new Map(),
@@ -62,10 +62,19 @@ export const blockCaptureExtension = {
   transforms: [
     (root) => {
       if (!sync.importing) return
+      sync.definitions = root.data.referenceDefinitions
       sync.captured = root.children.map((child, index) => {
         child.data = { ...child.data, myEditorBlock: index }
-        return { start: child.position?.start.offset, end: child.position?.end.offset, keys: [] }
+        return {
+          start: child.position?.start.offset,
+          end: child.position?.end.offset,
+          definition: child.type === 'definition',
+          keys: [],
+        }
       })
+      // Document-level declarations belong to the source map, outside editable
+      // selections. Deleting text on either side must not delete a shared target.
+      root.children = root.children.filter((child) => child.type !== 'definition')
       // Import visitors run synchronously after the transform.
       const finish = sync.finishImport
       queueMicrotask(() => finish?.())
@@ -140,6 +149,7 @@ export function importDocument(source, setMarkdown) {
   cancelScheduledExport()
   sync.finishImport?.()
   sync.captured = null
+  sync.definitions = new Map()
   sync.importing = true
   return new Promise((resolve) => {
     const timeout = setTimeout(() => finish(), 3000)
@@ -168,6 +178,9 @@ export function abandonImport() {
 export function beginTracking(source, previousOutline) {
   sync.source = source
   sync.blocks = sync.captured || []
+  sync.definitionBlocks = sync.blocks.flatMap((block, index) =>
+    block.definition ? [describe(original(index), index)] : [],
+  )
   sync.captured = null
   sync.cache.clear()
   sync.dirty.clear()
@@ -178,7 +191,6 @@ export function beginTracking(source, previousOutline) {
   sync.blockStyles.clear()
   const { fences, ...documentStyle } = inferMarkdownStyle(source)
   sync.documentStyle = documentStyle
-  sync.definitions = referenceDefinitions(source)
   sync.references = sync.definitions.size ? referenceUsages(source) : new Map()
   sync.baseline = sync.editor.getEditorState()
   sync.preserving = false
@@ -189,7 +201,11 @@ export function beginTracking(source, previousOutline) {
         .getChildren()
         .map((node) => node.getKey())
       const mapped = sync.blocks.flatMap((block) => block.keys)
-      if (sync.blocks.some((block) => block.keys.length === 0 || block.start === undefined))
+      if (
+        sync.blocks.some(
+          (block) => (!block.definition && !block.keys.length) || block.start === undefined,
+        )
+      )
         sync.reason = 'block without editor nodes'
       else if (mapped.some((key, index) => children[index] !== key))
         sync.reason = 'block order differs'
@@ -202,7 +218,9 @@ export function beginTracking(source, previousOutline) {
     { editor: sync.editor },
   )
   if (sync.preserving)
-    sync.blocks.forEach((block, index) => sync.firstKeys.set(block.keys[0], index))
+    sync.blocks.forEach((block, index) => {
+      if (!block.definition) sync.firstKeys.set(block.keys[0], index)
+    })
   sync.active = true
   return assemble(previousOutline).outline
 }
@@ -289,6 +307,24 @@ function original(index) {
   return sync.source.slice(block.start, block.end)
 }
 
+// Restore declarations at their original boundaries among surviving blocks.
+// A leading run stays before newly inserted text; trailing declarations stay
+// at the end even when the user appends a paragraph or replaces all the text.
+function* withDefinitions(units) {
+  const definitions = sync.definitionBlocks
+  if (!definitions.length) {
+    yield* units
+    return
+  }
+  let index = 0
+  while (definitions[index]?.block === index) yield definitions[index++]
+  for (const unit of units) {
+    while (definitions[index]?.block < unit.block) yield definitions[index++]
+    yield unit
+  }
+  yield* definitions.slice(index)
+}
+
 function assemble(previousOutline) {
   const started = performance.now()
   const units = []
@@ -335,7 +371,7 @@ function assemble(previousOutline) {
   let previous
   let emitted = false
   const outlineBlocks = []
-  for (const unit of units) {
+  for (const unit of withDefinitions(units)) {
     if (!unit.text) continue
     if (!emitted) text += unit.block === 0 ? sync.source.slice(0, sync.blocks[0].start) : ''
     else if (previous !== undefined && unit.block === previous + 1)
